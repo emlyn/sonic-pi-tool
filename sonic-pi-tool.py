@@ -21,6 +21,8 @@ except ImportError:
 
 class Server:
     def __init__(self, host, port):
+        # fix for https://github.com/repl-electric/sonic-pi.el/issues/19#issuecomment-345222832
+        self.prefix = b'@osc_server ||= SonicPi::OSC::UDPServer.new(4559, use_decoder_cache: true) #__nosave__\n'
         self.client_name = b'SONIC_PI_TOOL_PY'
         self.host = host
         self.port = port
@@ -41,7 +43,7 @@ class Server:
         self.send(b'/stop-all-jobs')
 
     def run_code(self, code):
-        self.send(b'/run-code', code.encode('utf8'))
+        self.send(b'/run-code', self.prefix + code.encode('utf8'))
 
     def start_recording(self):
         self.send(b'/start-recording')
