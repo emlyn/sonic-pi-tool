@@ -113,10 +113,10 @@ class Installation:
         return self.server is not None
 
     def ruby_path(self):
-        if self.ruby:
-            return '{}/{}'.format(self.base, Installation.ruby_paths[self.ruby])
-        else:
+        if self.ruby is None:
             return 'ruby'
+        else:
+            return '{}/{}'.format(self.base, Installation.ruby_paths[self.ruby])
 
     def server_path(self):
         return '{}/{}'.format(self.base, Installation.server_paths[self.server])
@@ -175,6 +175,8 @@ def start_server():
         pass
     for inst in paths:
         if inst.exists():
+            print("Found installation at: {}".format(inst.base))
+            print("Running: {} {}".format(inst.ruby_path(), inst.server_path()))
             subprocess.run([inst.ruby_path(), inst.server_path()]).check_returncode()
             break
     else:
