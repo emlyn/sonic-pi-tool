@@ -43,6 +43,13 @@ class Server:
     def run_code(self, code):
         self.send(b'/run-code', code.encode('utf8'))
 
+    def start_recording(self):
+        self.send(b'/start-recording')
+
+    def stop_and_save_recording(self, path):
+        self.send(b'/stop-recording')
+        self.send(b'/save-recording', path.encode('utf8'))
+
     @staticmethod
     def handle_log_info(style, msg):
         print("=> {}\n".format(msg.decode('utf8')))
