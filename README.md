@@ -38,6 +38,7 @@ sudo cp sonic-pi-tool.py /usr/local/bin/
 - [eval](#eval)
 - [eval-file](#eval-file)
 - [eval-stdin](#eval-stdin)
+- [run-file](#run-file)
 - [stop](#stop)
 - [logs](#logs)
 - [start-server](#start-server)
@@ -75,7 +76,7 @@ sonic-pi-tool.py eval-file path/to/code.rb
 ```
 
 Read Sonic Pi code from a file and send it to the Sonic Pi server to be
-played.
+played. If the file is too big, consider using `run-file` instead.
 
 
 ### `eval-stdin`
@@ -87,6 +88,18 @@ echo "play :C4" | sonic-pi-tool.py eval-stdin
 
 Read Sonic Pi code from standard in and send it to the Sonic Pi server to be
 played.
+
+
+### `run-file`
+
+```sh
+sonic-pi-tool.py run-file path/to/code.rb
+# *music*
+```
+
+Send a command to the Sonic Pi server to load and play the specified file.
+This avoids problems with files being too long since the entire content no longer
+needs to fit in a single OSC message.
 
 
 ### `stop`

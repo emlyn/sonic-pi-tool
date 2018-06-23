@@ -157,6 +157,13 @@ def eval_file(ctx, path):
     ctx.obj.run_code(path.read())
 
 @cli.command()
+@click.argument('path', type=click.Path(exists=True))
+@click.pass_context
+def run_file(ctx, path):
+    cmd = 'run_file "{}"'.format(os.path.abspath(path).replace('\\', '\\\\').replace('"', '\\"'))
+    ctx.obj.run_code(cmd)
+
+@cli.command()
 def start_server():
     paths = [Installation('/Applications/Sonic Pi.app'),
              Installation('./app'),
