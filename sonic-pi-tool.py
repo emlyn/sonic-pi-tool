@@ -1,21 +1,30 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # coding: utf-8
 
+from __future__ import print_function
+
 import click
-import html
 import os
 import socket
 import subprocess
 import sys
+import time
 
-from pythonosc import dispatcher, osc_server, udp_client
+from oscpy.server import OSCThreadServer
+from oscpy.client import OSCClient
+
+try:
+    import html
+except ImportError:
+    from HTMLParser import HTMLParser
+    html = HTMLParser()
 
 class Server:
     def __init__(self, host, port):
-        self.client_name = 'SONIC_PI_TOOL_PY'
+        self.client_name = b'SONIC_PI_TOOL_PY'
         self.host = host
         self.port = port
-        self.client = udp_client.SimpleUDPClient(host, port)
+        self.client = OSCClient(host, port)
 
     def send(self, msg, *args):
         self.client.send_message(msg, (self.client_name,) + args)
@@ -29,45 +38,48 @@ class Server:
         return False
 
     def stop_all_jobs(self):
-        self.send('/stop-all-jobs')
+        self.send(b'/stop-all-jobs')
 
     def run_code(self, code):
-        self.send('/run-code', code)
+        self.send(b'/run-code', code.encode('utf8'))
 
     @staticmethod
-    def handle_log_info(addr, style, msg):
-        print("=> {}\n".format(msg))
+    def handle_log_info(style, msg):
+        print("=> {}\n".format(msg.decode('utf8')))
 
     @staticmethod
-    def handle_multi_message(addr, run, thread, time, n, *msgs):
+    def handle_multi_message(run, thread, time, n, *msgs):
         print("{{run: {}, time: {}}}".format(run, time))
         for i in range(n):
             typ, msg = msgs[2*i: 2*i+2]
-            print(" {}─ {}".format("├" if i < n - 1 else "└", msg))
+            print(" {}─ {}".format("├" if i < n - 1 else "└", msg.decode('utf8')))
         print()
 
     @staticmethod
-    def handle_error(addr, run, msg, trace, line):
-        print("Runtime Error: {}\n{}\n".format(html.unescape(msg), html.unescape(trace)))
+    def handle_error(run, msg, trace, line):
+        print("Runtime Error: {}\n{}\n".format(html.unescape(msg.decode('utf8')),
+                                               html.unescape(trace.decode('utf8'))))
 
     @staticmethod
-    def handle_syntax_error(addr, run, msg, code, line, line_s):
+    def handle_syntax_error(run, msg, code, line, line_s):
         if line >= 0:
-            print("Error: {}\n[Line {}]: {}".format(html.unescape(msg), line, code))
+            print("Error: {}\n[Line {}]: {}".format(html.unescape(msg.decode('utf8')),
+                                                    line, code))
         else:
             print("Error: {}\n{}".format(html.unescape(msg), code))
 
     def follow_logs(self):
         try:
-            disp = dispatcher.Dispatcher()
-            disp.map('/log/multi_message', self.handle_multi_message)
-            disp.map('/multi_message', self.handle_multi_message)
-            disp.map('/log/info', self.handle_log_info)
-            disp.map('/info', self.handle_log_info)
-            disp.map('/error', self.handle_error)
-            disp.map('/syntax_error', self.handle_syntax_error)
-            server = osc_server.ThreadingOSCUDPServer(("127.0.0.1", 4558), disp)
-            server.serve_forever()
+            server = OSCThreadServer()
+            sock = server.listen(address='127.0.0.1', port=4558, default=True)
+            server.bind(b'/log/multi_message', self.handle_multi_message)
+            server.bind(b'/multi_message', self.handle_multi_message)
+            server.bind(b'/log/info', self.handle_log_info)
+            server.bind(b'/info', self.handle_log_info)
+            server.bind(b'/error', self.handle_error)
+            server.bind(b'/syntax_error', self.handle_syntax_error)
+            while True:
+                time.sleep(1)
         except Exception as e:
             return e
 

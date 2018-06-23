@@ -17,7 +17,7 @@ so it's not hard to install manually:
 
 ```sh
 # Install dependencies:
-pip3 install python-osc click
+pip install oscpy click
 
 # Download script:
 curl -O https://raw.githubusercontent.com/emlyn/sonic-pi-tool/master/sonic-pi-tool.py
@@ -29,7 +29,7 @@ chmod +x sonic-pi-tool.py
 sudo cp sonic-pi-tool.py /usr/local/bin/
 ```
 
-`sonic-pi-tool.py` does not currently support Python 2.
+`sonic-pi-tool.py` should be compatible with both Python 2.7+ and Python 3.6+.
 
 
 ## Usage
