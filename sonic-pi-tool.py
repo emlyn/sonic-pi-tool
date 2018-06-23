@@ -130,7 +130,7 @@ CONTEXT_SETTINGS = dict(token_normalize_func=lambda x: x.lower().replace('-', '_
 def cli(ctx, host, port):
     ctx.obj = Server(host, port)
 
-@cli.command()
+@cli.command(help="Check if Sonic Pi server is running.")
 @click.pass_context
 def check(ctx):
     if ctx.obj.server_port_in_use():
@@ -139,31 +139,31 @@ def check(ctx):
         print("Sonic Pi server NOT listening on port 4557")
         sys.exit(1)
 
-@cli.command()
+@cli.command(help="Send Sonic Pi code to the server to be played.")
 @click.argument('code')
 @click.pass_context
 def eval(ctx, code):
     ctx.obj.run_code(code)
 
-@cli.command()
+@cli.command(help="Read Sonic Pi code from stdin and send it to the server to be played.")
 @click.pass_context
 def eval_stdin(ctx):
     ctx.obj.run_code(sys.stdin.read())
 
-@cli.command()
+@cli.command(help="Read Sonic Pi code from a file and send it to the server to be played.")
 @click.argument('path', type=click.File('r'))
 @click.pass_context
 def eval_file(ctx, path):
     ctx.obj.run_code(path.read())
 
-@cli.command()
+@cli.command(help="Send path to the server for it to read and play file (for big files).")
 @click.argument('path', type=click.Path(exists=True))
 @click.pass_context
 def run_file(ctx, path):
     cmd = 'run_file "{}"'.format(os.path.abspath(path).replace('\\', '\\\\').replace('"', '\\"'))
     ctx.obj.run_code(cmd)
 
-@cli.command()
+@cli.command(help="Try to locate the Sonic Pi server executable and start it.")
 def start_server():
     paths = [Installation('/Applications/Sonic Pi.app'),
              Installation('./app'),
@@ -181,12 +181,12 @@ def start_server():
         print("I couldn't find the Sonic Pi server executable :(")
         sys.exit(1)
 
-@cli.command()
+@cli.command(help="Stop all jobs (and therefore music) running on the Sonic Pi server.")
 @click.pass_context
 def stop(ctx):
     ctx.obj.stop_all_jobs()
 
-@cli.command()
+@cli.command(help="Print logs emitted by the Sonic Pi server.")
 @click.pass_context
 def logs(ctx):
     err = ctx.obj.follow_logs()
@@ -200,7 +200,7 @@ If the GUI is running this command cannot function, try running just the Sonic P
         print("Please report this error at https://github.com/emlyn/sonic-pi-tool/issues")
         sys.exit(1)
 
-@cli.command()
+@cli.command(help="Record the audio output of Sonic Pi to a local file.")
 @click.argument('path')
 @click.pass_context
 def record(ctx, path):
