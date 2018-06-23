@@ -110,10 +110,13 @@ class Installation:
             self.server = None
 
     def exists(self):
-        return (self.ruby is not None) and (self.server is not None)
+        return self.server is not None
 
     def ruby_path(self):
-        return '{}/{}'.format(self.base, Installation.ruby_paths[self.ruby])
+        if self.ruby:
+            return '{}/{}'.format(self.base, Installation.ruby_paths[self.ruby])
+        else:
+            return 'ruby'
 
     def server_path(self):
         return '{}/{}'.format(self.base, Installation.server_paths[self.server])
