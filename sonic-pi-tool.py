@@ -20,6 +20,14 @@ except ImportError:
     html = HTMLParser()
 
 class Server:
+    styles = {0: {'bold': True, 'fg': 'magenta'},
+              1: {'bold': True, 'fg': 'blue'},
+              2: {'bold': True, 'fg': 'yellow'},
+              3: {'bold': True, 'fg': 'red'},
+              4: {'bold': True, 'bg': 'magenta'},
+              5: {'bold': False, 'fg': 'white'},
+              6: {'bold': True, 'bg': 'yellow'}}
+
     def __init__(self, host, port):
         # fix for https://github.com/repl-electric/sonic-pi.el/issues/19#issuecomment-345222832
         self.prefix = b'@osc_server||=SonicPi::OSC::UDPServer.new(4559,use_decoder_cache:true) #__nosave__\n'
@@ -54,28 +62,42 @@ class Server:
 
     @staticmethod
     def handle_log_info(style, msg):
-        print("=> {}\n".format(msg.decode('utf8')))
+        msg = "=> {}".format(msg.decode('utf8'))
+        click.echo(click.style(msg, reverse=True, bold=True))
+        click.echo()
 
     @staticmethod
     def handle_multi_message(run, thread, time, n, *msgs):
-        print("{{run: {}, time: {}}}".format(run, time))
+        msg = "{{run: {}, time: {}}}".format(run, time.decode('utf8'))
+        click.echo(click.style(msg, bold=True))
         for i in range(n):
             typ, msg = msgs[2*i: 2*i+2]
-            print(" {}─ {}".format("├" if i < n - 1 else "└", msg.decode('utf8')))
+            try:
+                sty = Server.styles[typ]
+            except KeyError:
+                sty = {}
+            msg1 = click.style("  {}─ ".format("├" if i < n - 1 else "└"))
+            msg2 = click.style(msg.decode('utf8'), **sty)
+            click.echo(msg1 + msg2)
         print()
 
     @staticmethod
-    def handle_error(run, msg, trace, line):
-        print("Runtime Error: {}\n{}\n".format(html.unescape(msg.decode('utf8')),
-                                               html.unescape(trace.decode('utf8'))))
+    def handle_error(run, msg, trace, line_num):
+        lines = html.unescape(msg.decode('utf8')).splitlines()
+        prefix = "Runtime Error: "
+        for line in lines:
+            click.echo(click.style(prefix + line, bg='magenta', bold=True))
+            prefix = ""
+        click.echo(html.unescape(trace.decode('utf8')))
+        click.echo()
 
     @staticmethod
-    def handle_syntax_error(run, msg, code, line, line_s):
-        if line >= 0:
-            print("Error: {}\n[Line {}]: {}".format(html.unescape(msg.decode('utf8')),
-                                                    line, code))
-        else:
-            print("Error: {}\n{}".format(html.unescape(msg), code))
+    def handle_syntax_error(run, msg, code, line_num, line_s):
+        click.echo(click.style("Error: {}".format(html.unescape(msg.decode('utf8'))), bg='blue', bold=True))
+        prefix = ""
+        if line_num >= 0:
+            prefix = click.style("[Line {}]: ".format(line_num), fg='magenta', bold=True)
+        click.echo(prefix + code.decode('utf8'))
 
     def follow_logs(self):
         try:
