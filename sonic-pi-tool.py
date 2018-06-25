@@ -20,13 +20,25 @@ except ImportError:
     html = HTMLParser()
 
 class Server:
-    styles = {0: {'bold': True, 'fg': 'magenta'},
-              1: {'bold': True, 'fg': 'blue'},
-              2: {'bold': True, 'fg': 'yellow'},
-              3: {'bold': True, 'fg': 'red'},
-              4: {'bold': True, 'bg': 'magenta'},
-              5: {'bold': False, 'fg': 'white'},
-              6: {'bold': True, 'bg': 'yellow'}}
+    styles = {
+        # Info message
+        'info': {'bold': True, 'reverse': True},
+        # Multi message and different subtypes
+        'multi': {'bold': True},
+        0: {'bold': True, 'fg': 'magenta'},
+        1: {'bold': True, 'fg': 'blue'},
+        2: {'bold': True, 'fg': 'yellow'},
+        3: {'bold': True, 'fg': 'red'},
+        4: {'bold': True, 'bg': 'magenta'},
+        5: {'bold': True, 'bg': 'blue'},
+        6: {'bold': True, 'bg': 'yellow'},
+        # Runtime error and trace
+        'runtime': {'bold': True, 'bg': 'magenta'},
+        'trace': {},
+        # Syntax error and line + code
+        'syntax': {'bold': True, 'bg': 'blue'},
+        'line': {'bold': True, 'fg': 'magenta'},
+        'code': {}}
 
     def __init__(self, host, port):
         # fix for https://github.com/repl-electric/sonic-pi.el/issues/19#issuecomment-345222832
@@ -61,43 +73,55 @@ class Server:
         self.send(b'/save-recording', path.encode('utf8'))
 
     @staticmethod
+    def printc(*txt_style):
+        """Print with colour. Takes pairs of text and style (dict, or key into Server.styles)"""
+        r = ''
+        for i in range(0, len(txt_style), 2):
+            txt, style = txt_style[i: i+2]
+            if not isinstance(style, dict):
+                try:
+                    style = Server.styles[style]
+                except KeyError:
+                    style = {}
+            r += click.style(txt, **style)
+        click.echo(r)
+
+    @staticmethod
     def handle_log_info(style, msg):
         msg = "=> {}".format(msg.decode('utf8'))
-        click.echo(click.style(msg, reverse=True, bold=True))
+        Server.printc(msg, 'info')
         click.echo()
 
     @staticmethod
     def handle_multi_message(run, thread, time, n, *msgs):
         msg = "{{run: {}, time: {}}}".format(run, time.decode('utf8'))
-        click.echo(click.style(msg, bold=True))
+        Server.printc(msg, 'multi')
         for i in range(n):
             typ, msg = msgs[2*i: 2*i+2]
-            try:
-                sty = Server.styles[typ]
-            except KeyError:
-                sty = {}
-            msg1 = click.style("  {}─ ".format("├" if i < n - 1 else "└"))
-            msg2 = click.style(msg.decode('utf8'), **sty)
-            click.echo(msg1 + msg2)
-        print()
+            for j, line in enumerate(msg.decode('utf8').splitlines()):
+                if i < n - 1:
+                    prefix = "  ├─ " if j == 0 else "  │"
+                else:
+                    prefix = "  └─ " if j == 0 else "   "
+                Server.printc(prefix, 'multi', line, typ)
+        click.echo()
 
     @staticmethod
-    def handle_error(run, msg, trace, line_num):
+    def handle_runtime_error(run, msg, trace, line_num):
         lines = html.unescape(msg.decode('utf8')).splitlines()
         prefix = "Runtime Error: "
         for line in lines:
-            click.echo(click.style(prefix + line, bg='magenta', bold=True))
+            Server.printc(prefix + line, 'runtime')
             prefix = ""
-        click.echo(html.unescape(trace.decode('utf8')))
+        Server.printc(html.unescape(trace.decode('utf8')), 'trace')
         click.echo()
 
     @staticmethod
     def handle_syntax_error(run, msg, code, line_num, line_s):
-        click.echo(click.style("Error: {}".format(html.unescape(msg.decode('utf8'))), bg='blue', bold=True))
-        prefix = ""
-        if line_num >= 0:
-            prefix = click.style("[Line {}]: ".format(line_num), fg='magenta', bold=True)
-        click.echo(prefix + code.decode('utf8'))
+        Server.printc("Error: " + html.unescape(msg.decode('utf8')), 'syntax')
+        prefix = "[Line {}]: ".format(line_num) if line >= 0 else ""
+        Server.printc(prefix, 'line',
+                      code.decode('utf8'), 'code')
 
     def follow_logs(self):
         try:
@@ -107,7 +131,7 @@ class Server:
             server.bind(b'/multi_message', self.handle_multi_message)
             server.bind(b'/log/info', self.handle_log_info)
             server.bind(b'/info', self.handle_log_info)
-            server.bind(b'/error', self.handle_error)
+            server.bind(b'/error', self.handle_runtime_error)
             server.bind(b'/syntax_error', self.handle_syntax_error)
             while True:
                 time.sleep(1)
