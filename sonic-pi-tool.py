@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+# coding: utf-8
+
+import click
+import html
+import os
+import socket
+import subprocess
+import sys
+
+from pythonosc import dispatcher, osc_server, udp_client
+
+class Server:
+    def __init__(self, host, port):
+        self.client_name = 'SONIC_PI_TOOL_PY'
+        self.host = host
+        self.port = port
+        self.client = udp_client.SimpleUDPClient(host, port)
+
+    def send(self, msg, *args):
+        self.client.send_message(msg, (self.client_name,) + args)
+
+    def server_port_in_use(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            try:
+                sock.bind(('127.0.0.1', self.port))
+            except OSError:
+                return True
+        return False
+
+    def stop_all_jobs(self):
+        self.send('/stop-all-jobs')
+
+    def run_code(self, code):
+        self.send('/run-code', code)
+
+    @staticmethod
+    def handle_log_info(addr, style, msg):
+        print("=> {}\n".format(msg))
+
+    @staticmethod
+    def handle_multi_message(addr, run, thread, time, n, *msgs):
+        print("{{run: {}, time: {}}}".format(run, time))
+        for i in range(n):
+            typ, msg = msgs[2*i: 2*i+2]
+            print(" {}─ {}".format("├" if i < n - 1 else "└", msg))
+        print()
+
+    @staticmethod
+    def handle_error(addr, run, msg, trace, line):
+        print("Runtime Error: {}\n{}\n".format(html.unescape(msg), html.unescape(trace)))
+
+    @staticmethod
+    def handle_syntax_error(addr, run, msg, code, line, line_s):
+        if line >= 0:
+            print("Error: {}\n[Line {}]: {}".format(html.unescape(msg), line, code))
+        else:
+            print("Error: {}\n{}".format(html.unescape(msg), code))
+
+    def follow_logs(self):
+        try:
+            disp = dispatcher.Dispatcher()
+            disp.map('/log/multi_message', self.handle_multi_message)
+            disp.map('/multi_message', self.handle_multi_message)
+            disp.map('/log/info', self.handle_log_info)
+            disp.map('/info', self.handle_log_info)
+            disp.map('/error', self.handle_error)
+            disp.map('/syntax_error', self.handle_syntax_error)
+            server = osc_server.ThreadingOSCUDPServer(("127.0.0.1", 4558), disp)
+            server.serve_forever()
+        except Exception as e:
+            return e
+
+class Installation:
+    ruby_paths = ['server/native/ruby/bin/ruby']
+    server_paths = ['server/ruby/bin/sonic-pi-server.rb',
+                    'server/bin/sonic-pi-server.rb']
+    def __init__(self, base):
+        self.base = base
+        for i, path in enumerate(Installation.ruby_paths):
+            if os.path.isfile('{}/{}'.format(base, path)):
+                self.ruby = i
+                break
+        else:
+            self.ruby = None
+        for i, path in enumerate(Installation.server_paths):
+            if os.path.isfile('{}/{}'.format(base, path)):
+                self.server = i
+                break
+        else:
+            self.server = None
+
+    def exists(self):
+        return (self.ruby is not None) and (self.server is not None)
+
+    def ruby_path(self):
+        return '{}/{}'.format(self.base, Installation.ruby_paths[self.ruby])
+
+    def server_path(self):
+        return '{}/{}'.format(self.base, Installation.server_paths[self.server])
+
+CONTEXT_SETTINGS = dict(token_normalize_func=lambda x: x.lower().replace('-', '_'))
+
+@click.group(context_settings=CONTEXT_SETTINGS)
+@click.option('--host', default='127.0.0.1')
+@click.option('--port', default=4557)
+@click.pass_context
+def cli(ctx, host, port):
+    ctx.obj = Server(host, port)
+
+@cli.command()
+@click.pass_context
+def check(ctx):
+    if ctx.obj.server_port_in_use():
+        print("Sonic Pi server listening on port 4557")
+    else:
+        print("Sonic Pi server NOT listening on port 4557")
+        sys.exit(1)
+
+@cli.command()
+@click.argument('code')
+@click.pass_context
+def eval(ctx, code):
+    ctx.obj.run_code(code)
+
+@cli.command()
+@click.pass_context
+def eval_stdin(ctx):
+    ctx.obj.run_code(sys.stdin.read())
+
+@cli.command()
+@click.argument('path', type=click.File('r'))
+@click.pass_context
+def eval_file(ctx, path):
+    ctx.obj.run_code(path.read())
+
+@cli.command()
+def start_server():
+    paths = [Installation('/Applications/Sonic Pi.app'),
+             Installation('./app'),
+             Installation('/opt/sonic-pi/app'),
+             Installation('/usr/lib/sonic-pi')]
+    try:
+        paths.insert(0, Installation('{}/{}'.format(os.environ['HOME'], 'Applications/Sonic Pi.app')))
+    except KeyError:
+        pass
+    for inst in paths:
+        if inst.exists():
+            subprocess.run([inst.ruby_path(), inst.server_path()]).check_returncode()
+            break
+    else:
+        print("I couldn't find the Sonic Pi server executable :(")
+        sys.exit(1)
+
+@cli.command()
+@click.pass_context
+def stop(ctx):
+    ctx.obj.stop_all_jobs()
+
+@cli.command()
+@click.pass_context
+def logs(ctx):
+    err = ctx.obj.follow_logs()
+    if err == True:
+        print("""error: Unable to listen for Sonic Pi server logs, address already in use.
+This may because the Sonic Pi GUI is running and already listening on the desired port.
+If the GUI is running this command cannot function, try running just the Sonic Pi server.""")
+        sys.exit(1)
+    elif err:
+        print("Unexpected error: {}\n".format(err))
+        print("Please report this error at https://github.com/emlyn/sonic-pi-tool/issues")
+        sys.exit(1)
+
+@cli.command()
+@click.argument('path')
+@click.pass_context
+def record(ctx, path):
+    ctx.obj.start_recording()
+    print("Recording started, saving to {}".format(path))
+    input("Press Enter to stop the recording...")
+    ctx.obj.stop_and_save_recording(path)
+
+if __name__ == '__main__':
+    cli(obj=None)
