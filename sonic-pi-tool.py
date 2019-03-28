@@ -19,6 +19,19 @@ except ImportError:
     from HTMLParser import HTMLParser
     html = HTMLParser()
 
+def parse_val(s):
+    try:
+        return int(s)
+    except ValueError:
+        pass
+    try:
+        return float(s)
+    except ValueError:
+        pass
+    if len(s) > 1 and s[0] == '"' and s[-1] == '"':
+        return s[1:-1].encode('utf8')
+    return s.encode('utf8')
+
 class Server:
     styles = {
         # Info message
@@ -40,16 +53,25 @@ class Server:
         'line': {'bold': True, 'fg': 'magenta'},
         'code': {}}
 
-    def __init__(self, host, port):
+    def __init__(self, host, cmd_port, osc_port):
         # fix for https://github.com/repl-electric/sonic-pi.el/issues/19#issuecomment-345222832
         self.prefix = '@osc_server||=SonicPi::OSC::UDPServer.new(4559,use_decoder_cache:true) #__nosave__\n'
         self.client_name = 'SONIC_PI_TOOL_PY'
         self.host = host
-        self.port = port
-        self.client = OSCClient(host, port, encoding='utf8')
+        self.cmd_port = cmd_port
+        self.osc_port = osc_port
+        self.cmd_client = None
+        self.osc_client = None
 
-    def send(self, msg, *args):
-        self.client.send_message(msg, (self.client_name,) + args)
+    def send_cmd(self, msg, *args):
+        if self.cmd_client is None:
+            self.cmd_client = OSCClient(self.host, self.cmd_port, encoding='utf8')
+        self.cmd_client.send_message(msg, (self.client_name,) + args)
+
+    def send_osc(self, path, args):
+        if self.osc_client is None:
+            self.osc_client = OSCClient(self.host, self.osc_port, encoding='utf8')
+        self.osc_client.send_message(path.encode('utf8'), [parse_val(s) for s in args])
 
     def server_port_in_use(self):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -60,17 +82,17 @@ class Server:
         return False
 
     def stop_all_jobs(self):
-        self.send('/stop-all-jobs')
+        self.send_cmd('/stop-all-jobs')
 
     def run_code(self, code):
-        self.send('/run-code', self.prefix + code)
+        self.send_cmd('/run-code', self.prefix + code)
 
     def start_recording(self):
-        self.send('/start-recording')
+        self.send_cmd('/start-recording')
 
     def stop_and_save_recording(self, path):
-        self.send('/stop-recording')
-        self.send('/save-recording', path)
+        self.send_cmd('/stop-recording')
+        self.send_cmd('/save-recording', path)
 
     @staticmethod
     def printc(*txt_style):
@@ -174,9 +196,10 @@ CONTEXT_SETTINGS = dict(token_normalize_func=lambda x: x.lower().replace('-', '_
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.option('--host', default='127.0.0.1')
 @click.option('--port', default=4557)
+@click.option('--osc-port', default=4559)
 @click.pass_context
-def cli(ctx, host, port):
-    ctx.obj = Server(host, port)
+def cli(ctx, host, port, osc_port):
+    ctx.obj = Server(host, port, osc_port)
 
 @cli.command(help="Check if Sonic Pi server is running.")
 @click.pass_context
@@ -210,6 +233,13 @@ def eval_file(ctx, path):
 def run_file(ctx, path):
     cmd = 'run_file "{}"'.format(os.path.abspath(path).replace('\\', '\\\\').replace('"', '\\"'))
     ctx.obj.run_code(cmd)
+
+@cli.command(help="Send an OSC cue to a running Sonic Pi script")
+@click.argument('path', default='')
+@click.argument('args', nargs=-1)
+@click.pass_context
+def osc(ctx, path, args):
+    ctx.obj.send_osc(path, args)
 
 @cli.command(help="Try to locate Sonic Pi server and start it.")
 def start_server():
