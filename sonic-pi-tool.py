@@ -165,19 +165,17 @@ class Installation:
     server_paths = ['server/ruby/bin/sonic-pi-server.rb',
                     'server/bin/sonic-pi-server.rb']
     def __init__(self, base):
-        self.base = base
+        self.base = os.path.expanduser(base)
+        self.ruby = None
         for i, path in enumerate(Installation.ruby_paths):
-            if os.path.isfile('{}/{}'.format(base, path)):
+            if os.path.isfile(os.path.join(base, path)):
                 self.ruby = i
                 break
-        else:
-            self.ruby = None
+        self.server = None
         for i, path in enumerate(Installation.server_paths):
-            if os.path.isfile('{}/{}'.format(base, path)):
+            if os.path.isfile(os.path.join(base, path)):
                 self.server = i
                 break
-        else:
-            self.server = None
 
     def exists(self):
         return self.server is not None
@@ -186,17 +184,17 @@ class Installation:
         if self.ruby is None:
             return 'ruby'
         else:
-            return '{}/{}'.format(self.base, Installation.ruby_paths[self.ruby])
+            return os.path.join(self.base, Installation.ruby_paths[self.ruby])
 
     def server_path(self):
-        return '{}/{}'.format(self.base, Installation.server_paths[self.server])
+        return os.path.join(self.base, Installation.server_paths[self.server])
 
 CONTEXT_SETTINGS = dict(token_normalize_func=lambda x: x.lower().replace('-', '_'))
 
 @click.group(context_settings=CONTEXT_SETTINGS)
-@click.option('--host', default='127.0.0.1')
-@click.option('--port', default=4557)
-@click.option('--osc-port', default=4559)
+@click.option('--host', default='127.0.0.1', help="IP or hostname of Sonic Pi server")
+@click.option('--port', default=4557, help="Port number of Sonic Pi server")
+@click.option('--osc-port', default=4559, help="Port number of Sonic Pi OSC cue server")
 @click.pass_context
 def cli(ctx, host, port, osc_port):
     ctx.obj = Server(host, port, osc_port)
@@ -235,23 +233,24 @@ def run_file(ctx, path):
     ctx.obj.run_code(cmd)
 
 @cli.command(help="Send an OSC cue to a running Sonic Pi script")
-@click.argument('path', default='')
+@click.argument('path', required=True)
 @click.argument('args', nargs=-1)
 @click.pass_context
 def osc(ctx, path, args):
     ctx.obj.send_osc(path, args)
 
 @cli.command(help="Try to locate Sonic Pi server and start it.")
-def start_server():
-    paths = [Installation('/Applications/Sonic Pi.app'),
-             Installation('./app'),
-             Installation('/opt/sonic-pi/app'),
-             Installation('/usr/lib/sonic-pi')]
-    try:
-        paths.insert(0, Installation('{}/{}'.format(os.environ['HOME'], 'Applications/Sonic Pi.app')))
-    except KeyError:
-        pass
-    for inst in paths:
+@click.option('--path', multiple=True, type=click.Path(exists=True),
+              help="Path to Sonic Pi app to try before defaults, may be specified multiple times")
+def start_server(path):
+    default_paths = ('./Sonic Pi.app', # Check current dir first
+                     './app',
+                     '~/Applications/Sonic Pi.app', # Then home dir
+                     '/Applications/Sonic Pi.app', # And finally standard install locations
+                     '/opt/sonic-pi/app',
+                     '/usr/lib/sonic-pi')
+    for p in path + default_paths:
+        inst = Installation(p)
         if inst.exists():
             print("Found installation at: {}".format(inst.base))
             print("Running: {} {}".format(inst.ruby_path(), inst.server_path()))
