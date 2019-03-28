@@ -29,7 +29,8 @@ chmod +x sonic-pi-tool.py
 sudo cp sonic-pi-tool.py /usr/local/bin/
 ```
 
-`sonic-pi-tool.py` should be compatible with both Python 2.7+ and Python 3.6+.
+`sonic-pi-tool.py` should be compatible with both Python 2.7+ and Python 3.6+,
+but it hasn't been tested extensively, so if you have trouble running it please file an issue.
 
 
 ## Usage
