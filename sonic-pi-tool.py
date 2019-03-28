@@ -141,7 +141,7 @@ class Server:
     @staticmethod
     def handle_syntax_error(run, msg, code, line_num, line_s):
         Server.printc("Error: " + html.unescape(msg.decode('utf8')), 'syntax')
-        prefix = "[Line {}]: ".format(line_num) if line >= 0 else ""
+        prefix = "[Line {}]: ".format(line_num) if line_num >= 0 else ""
         Server.printc(prefix, 'line',
                       code.decode('utf8'), 'code')
 

@@ -1,7 +1,7 @@
 Sonic Pi Tool (Python)
 =============
 
-`sonic-pi-tool.py` is a port of [sonic-pi-tool](https://github.com/lpil/sonic-pi-tool) to Python.
+`sonic-pi-tool.py` is a rewrite of the Rust [sonic-pi-tool](https://github.com/lpil/sonic-pi-tool) in Python.
 It is a handy command line utility for playing with the Sonic Pi
 server. It can be used instead of the Sonic Pi GUI for all your music making
 needs :)
