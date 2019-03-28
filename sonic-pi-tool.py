@@ -42,11 +42,11 @@ class Server:
 
     def __init__(self, host, port):
         # fix for https://github.com/repl-electric/sonic-pi.el/issues/19#issuecomment-345222832
-        self.prefix = b'@osc_server||=SonicPi::OSC::UDPServer.new(4559,use_decoder_cache:true) #__nosave__\n'
-        self.client_name = b'SONIC_PI_TOOL_PY'
+        self.prefix = '@osc_server||=SonicPi::OSC::UDPServer.new(4559,use_decoder_cache:true) #__nosave__\n'
+        self.client_name = 'SONIC_PI_TOOL_PY'
         self.host = host
         self.port = port
-        self.client = OSCClient(host, port)
+        self.client = OSCClient(host, port, encoding='utf8')
 
     def send(self, msg, *args):
         self.client.send_message(msg, (self.client_name,) + args)
@@ -60,17 +60,17 @@ class Server:
         return False
 
     def stop_all_jobs(self):
-        self.send(b'/stop-all-jobs')
+        self.send('/stop-all-jobs')
 
     def run_code(self, code):
-        self.send(b'/run-code', self.prefix + code.encode('utf8'))
+        self.send('/run-code', self.prefix + code)
 
     def start_recording(self):
-        self.send(b'/start-recording')
+        self.send('/start-recording')
 
     def stop_and_save_recording(self, path):
-        self.send(b'/stop-recording')
-        self.send(b'/save-recording', path.encode('utf8'))
+        self.send('/stop-recording')
+        self.send('/save-recording', path)
 
     @staticmethod
     def printc(*txt_style):
