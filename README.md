@@ -39,67 +39,80 @@ sudo cp sonic-pi-tool.py /usr/local/bin/
 - [eval-file](#eval-file)
 - [eval-stdin](#eval-stdin)
 - [run-file](#run-file)
+- [osc](#osc)
 - [stop](#stop)
 - [logs](#logs)
 - [start-server](#start-server)
 - [record](#record)
 
-### `check`
 
-```sh
-sonic-pi-tool.py check
-# => Sonic Pi server listening on port 4557
-```
+### `check`
 
 Used to check if the Sonic Pi server is running. If the server isn't running
 many of the tool's commands (such as `eval`) will not work.
 
 This command returns a non-zero exit code if the server is not running.
 
+```sh
+sonic-pi-tool.py check
+# => Sonic Pi server listening on port 4557
+```
+
 
 ### `eval`
+
+Take a string of Sonic Pi code and send it to the Sonic Pi server to be
+played.
 
 ```sh
 sonic-pi-tool.py eval "play :C4"
 # *ding*
 ```
 
-Take a string Sonic Pi code and send it to the Sonic Pi server to be
-played.
-
 
 ### `eval-file`
+
+Read Sonic Pi code from a file and send it to the Sonic Pi server to be
+played. If the file is too big, consider using `run-file` instead.
 
 ```sh
 sonic-pi-tool.py eval-file path/to/code.rb
 # *music*
 ```
 
-Read Sonic Pi code from a file and send it to the Sonic Pi server to be
-played. If the file is too big, consider using `run-file` instead.
-
 
 ### `eval-stdin`
+
+Read Sonic Pi code from standard in and send it to the Sonic Pi server to be
+played.
 
 ```sh
 echo "play :C4" | sonic-pi-tool.py eval-stdin
 # *ding*
 ```
 
-Read Sonic Pi code from standard in and send it to the Sonic Pi server to be
-played.
-
 
 ### `run-file`
+
+Send a command to the Sonic Pi server to load and play the specified file.
+This avoids problems with files being too long since the entire content no longer
+needs to fit in a single OSC message.
 
 ```sh
 sonic-pi-tool.py run-file path/to/code.rb
 # *music*
 ```
 
-Send a command to the Sonic Pi server to load and play the specified file.
-This avoids problems with files being too long since the entire content no longer
-needs to fit in a single OSC message.
+
+### `osc`
+
+Send an OSC cue to Sonic Pi.
+Allows a running Sonic Pi script to receive data from or synchronise to an external system.
+
+``` sh
+sonic-pi-tool.py osc /trigger/foo 123
+# Triggers `sync "/osc/trigger/foo"` command running in Sonic Pi
+```
 
 
 ### `stop`
@@ -133,6 +146,12 @@ sonic-pi-tool.py logs
 ### `start-server`
 
 Attempts start the Sonic Pi server, if the executable can be found.
+Searches a few standard locations, first in the current directory, then the users home directory
+and finally some standard install locations.
+
+If it is unable to find your installation, you can pass the location in the `--path` option.
+Please also consider raising an issue including the path to your install,
+and I will add it to the list of search paths.
 
 Not supported on Windows.
 
@@ -144,6 +163,7 @@ sonic-pi-tool.py start-server
 # ...
 ```
 
+
 ### `record`
 
 Record the audio output of a Sonic Pi session to a local file.
@@ -154,5 +174,6 @@ sonic-pi-tool.py record /tmp/output.wav
 # Recording started, saving to /tmp/output.wav.
 # Press Enter to stop the recording...
 ```
+
 
 ## MPL 2.0 Licence
