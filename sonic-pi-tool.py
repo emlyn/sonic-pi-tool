@@ -29,8 +29,8 @@ def parse_val(s):
     except ValueError:
         pass
     if len(s) > 1 and s[0] == '"' and s[-1] == '"':
-        return s[1:-1].encode('utf8')
-    return s.encode('utf8')
+        return s[1:-1]
+    return s
 
 class Server:
     styles = {
@@ -55,8 +55,8 @@ class Server:
 
     def __init__(self, host, cmd_port, osc_port):
         # fix for https://github.com/repl-electric/sonic-pi.el/issues/19#issuecomment-345222832
-        self.prefix = b'@osc_server||=SonicPi::OSC::UDPServer.new(4559,use_decoder_cache:true) #__nosave__\n'
-        self.client_name = b'SONIC_PI_TOOL_PY'
+        self.prefix = '@osc_server||=SonicPi::OSC::UDPServer.new(4559,use_decoder_cache:true) #__nosave__\n'
+        self.client_name = 'SONIC_PI_TOOL_PY'
         self.host = host
         self.cmd_port = cmd_port
         self.osc_port = osc_port
@@ -65,13 +65,13 @@ class Server:
 
     def send_cmd(self, msg, *args):
         if self.cmd_client is None:
-            self.cmd_client = OSCClient(self.host, self.cmd_port)
+            self.cmd_client = OSCClient(self.host, self.cmd_port, encoding='utf8')
         self.cmd_client.send_message(msg, (self.client_name,) + args)
 
     def send_osc(self, path, args):
         if self.osc_client is None:
             self.osc_client = OSCClient(self.host, self.osc_port, encoding='utf8')
-        self.osc_client.send_message(path.encode('utf8'), [parse_val(s) for s in args])
+        self.osc_client.send_message(path, [parse_val(s) for s in args])
 
     def server_port_in_use(self):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -82,17 +82,17 @@ class Server:
         return False
 
     def stop_all_jobs(self):
-        self.send_cmd(b'/stop-all-jobs')
+        self.send_cmd('/stop-all-jobs')
 
     def run_code(self, code):
-        self.send_cmd(b'/run-code', self.prefix + code)
+        self.send_cmd('/run-code', self.prefix + code)
 
     def start_recording(self):
-        self.send_cmd(b'/start-recording')
+        self.send_cmd('/start-recording')
 
     def stop_and_save_recording(self, path):
-        self.send_cmd(b'/stop-recording')
-        self.send_cmd(b'/save-recording', path)
+        self.send_cmd('/stop-recording')
+        self.send_cmd('/save-recording', path)
 
     @staticmethod
     def printc(*txt_style):
@@ -110,17 +110,17 @@ class Server:
 
     @staticmethod
     def handle_log_info(style, msg):
-        msg = "=> {}".format(msg.decode('utf8'))
+        msg = "=> {}".format(msg)
         Server.printc(msg, 'info')
         click.echo()
 
     @staticmethod
     def handle_multi_message(run, thread, time, n, *msgs):
-        msg = "{{run: {}, time: {}}}".format(run, time.decode('utf8'))
+        msg = "{{run: {}, time: {}}}".format(run, time)
         Server.printc(msg, 'multi')
         for i in range(n):
             typ, msg = msgs[2*i: 2*i+2]
-            for j, line in enumerate(msg.decode('utf8').splitlines()):
+            for j, line in enumerate(msg.splitlines()):
                 if i < n - 1:
                     prefix = "  ├─ " if j == 0 else "  │"
                 else:
@@ -130,31 +130,30 @@ class Server:
 
     @staticmethod
     def handle_runtime_error(run, msg, trace, line_num):
-        lines = html.unescape(msg.decode('utf8')).splitlines()
+        lines = html.unescape(msg).splitlines()
         prefix = "Runtime Error: "
         for line in lines:
             Server.printc(prefix + line, 'runtime')
             prefix = ""
-        Server.printc(html.unescape(trace.decode('utf8')), 'trace')
+        Server.printc(html.unescape(trace), 'trace')
         click.echo()
 
     @staticmethod
     def handle_syntax_error(run, msg, code, line_num, line_s):
-        Server.printc("Error: " + html.unescape(msg.decode('utf8')), 'syntax')
+        Server.printc("Error: " + html.unescape(msg), 'syntax')
         prefix = "[Line {}]: ".format(line_num) if line_num >= 0 else ""
-        Server.printc(prefix, 'line',
-                      code.decode('utf8'), 'code')
+        Server.printc(prefix, 'line', code, 'code')
 
     def follow_logs(self):
         try:
-            server = OSCThreadServer()
+            server = OSCThreadServer(encoding='utf8')
             sock = server.listen(address='127.0.0.1', port=4558, default=True)
-            server.bind(b'/log/multi_message', self.handle_multi_message)
-            server.bind(b'/multi_message', self.handle_multi_message)
-            server.bind(b'/log/info', self.handle_log_info)
-            server.bind(b'/info', self.handle_log_info)
-            server.bind(b'/error', self.handle_runtime_error)
-            server.bind(b'/syntax_error', self.handle_syntax_error)
+            server.bind('/log/multi_message', self.handle_multi_message)
+            server.bind('/multi_message', self.handle_multi_message)
+            server.bind('/log/info', self.handle_log_info)
+            server.bind('/info', self.handle_log_info)
+            server.bind('/error', self.handle_runtime_error)
+            server.bind('/syntax_error', self.handle_syntax_error)
             while True:
                 time.sleep(1)
         except Exception as e:
