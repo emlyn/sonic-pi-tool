@@ -34,6 +34,21 @@ def parse_val(s):
     return s
 
 
+def run(*popenargs, **kwargs):
+    process = subprocess.Popen(*popenargs, **kwargs)
+    try:
+        stdout, stderr = process.communicate(input)
+    except Exception:
+        process.kill()
+        process.wait()
+        raise
+    retcode = process.poll()
+    if retcode:
+        raise subprocess.CalledProcessError(
+            retcode, process.args, output=stdout, stderr=stderr)
+    return retcode, stdout, stderr
+
+
 class Server:
     styles = {
         # Info message
@@ -277,8 +292,8 @@ def start_server(path):
             print("Found installation at: {}".format(inst.base))
             print("Running: {} {}".format(inst.ruby_path(),
                                           inst.server_path()))
-            subprocess.run([inst.ruby_path(),
-                            inst.server_path()]).check_returncode()
+            run([inst.ruby_path(),
+                 inst.server_path()]).check_returncode()
             break
     else:
         print("I couldn't find the Sonic Pi server executable :(")
