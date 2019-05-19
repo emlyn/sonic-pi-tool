@@ -5,6 +5,7 @@ from __future__ import print_function
 
 import click
 import os
+import platform
 import socket
 import subprocess
 import sys
@@ -292,8 +293,11 @@ def start_server(path):
             print("Found installation at: {}".format(inst.base))
             print("Running: {} {}".format(inst.ruby_path(),
                                           inst.server_path()))
-            run([inst.ruby_path(),
-                 inst.server_path()]).check_returncode()
+            args = [inst.ruby_path(), '-E', 'utf-8']
+            if platform.system in ['Darwin', 'Windows']:
+                args.append('--enable-frozen-string-literal')
+            args.append(inst.server_path())
+            run(args)
             break
     else:
         print("I couldn't find the Sonic Pi server executable :(")
