@@ -97,7 +97,7 @@ class Server:
     def server_port_in_use(self):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             try:
-                sock.bind(('127.0.0.1', self.port))
+                sock.bind(('127.0.0.1', self.cmd_port))
             except OSError:
                 return True
         return False
