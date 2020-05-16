@@ -92,13 +92,16 @@ class Server:
         if default > 0:
             print("Using command port of", default)
             return default
-        with open(os.path.expanduser("~/.sonic-pi/log/server-output.log")) as f:
-            for line in f:
-                m = re.search('^Listen port: *([0-9]+)', line)
-                if m:
-                    p = int(m.groups()[0])
-                    print("Found command port in log:", p)
-                    return p
+        try:
+            with open(os.path.expanduser("~/.sonic-pi/log/server-output.log")) as f:
+                for line in f:
+                    m = re.search('^Listen port: *([0-9]+)', line)
+                    if m:
+                        p = int(m.groups()[0])
+                        print("Found command port in log:", p)
+                        return p
+        except FileNotFoundError:
+            pass
         print("Couldn't find command port in log, using", -default)
         return -default
 
