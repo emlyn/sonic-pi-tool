@@ -110,13 +110,30 @@ class Server:
                                         encoding='utf8')
         self.osc_client.send_message(path, [parse_val(s) for s in args])
 
-    def server_port_in_use(self):
+    def port_in_use(self, port):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             try:
-                sock.bind(('127.0.0.1', self.cmd_port))
+                sock.bind(('127.0.0.1', port))
             except OSError:
                 return True
         return False
+
+    def check_if_running(self):
+        cmd_listening = self.port_in_use(self.cmd_port)
+        print("The command port ({}) is {}in use".format(self.cmd_port,
+                                                         "" if cmd_listening else "not "))
+        osc_listening = self.port_in_use(self.osc_port)
+        print("The OSC port ({}) is {}in use".format(self.osc_port,
+                                                     "" if osc_listening else "not "))
+        if cmd_listening and osc_listening:
+            print("Sonic Pi appears to be running")
+            return 0
+        elif not cmd_listening and not osc_listening:
+            print("Sonic Pi is not running")
+            return 1
+        else:
+            print("Sonic Pi is not running properly, or there's an issue with the port numbers")
+            return 2
 
     def stop_all_jobs(self):
         self.send_cmd('/stop-all-jobs')
@@ -256,11 +273,7 @@ def cli(ctx, host, cmd_port, osc_port):
 @cli.command(help="Check if Sonic Pi server is running.")
 @click.pass_context
 def check(ctx):
-    if ctx.obj.server_port_in_use():
-        print("Sonic Pi server listening on port", ctx.obj.cmd_port)
-    else:
-        print("Sonic Pi server NOT listening on port", ctx.obj.cmd_port)
-        sys.exit(1)
+    sys.exit(ctx.obj.check_if_running())
 
 
 @cli.command(help="Send code to the server to be played.")
