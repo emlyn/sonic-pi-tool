@@ -37,7 +37,7 @@ def parse_val(s):
     return s
 
 
-def run(*popenargs, **kwargs):
+def run_process(*popenargs, **kwargs):
     process = subprocess.Popen(*popenargs, **kwargs)
     try:
         stdout, stderr = process.communicate(input)
@@ -228,6 +228,14 @@ class Installation:
     def server_path(self):
         return os.path.join(self.base, Installation.server_paths[self.server])
 
+    def run(self):
+        args = [self.ruby_path(), '-E', 'utf-8']
+        if platform.system in ['Darwin', 'Windows']:
+            args.append('--enable-frozen-string-literal')
+        args.append(self.server_path())
+        print("Running:", ' '.join(args))
+        run_process(args)
+
 
 CONTEXT_SETTINGS = dict(token_normalize_func=lambda x:
                         x.lower().replace('-', '_'))
@@ -309,13 +317,7 @@ def start_server(path):
             inst = Installation(p)
             if inst.exists():
                 print("Found installation at: {}".format(inst.base))
-                print("Running: {} {}".format(inst.ruby_path(),
-                                              inst.server_path()))
-                args = [inst.ruby_path(), '-E', 'utf-8']
-                if platform.system in ['Darwin', 'Windows']:
-                    args.append('--enable-frozen-string-literal')
-                args.append(inst.server_path())
-                run(args)
+                inst.run()
                 return
     print("I couldn't find the Sonic Pi server executable :(")
     sys.exit(1)
