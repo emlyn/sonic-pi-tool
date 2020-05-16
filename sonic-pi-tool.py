@@ -326,7 +326,8 @@ def start_server(path):
                      '/Applications/Sonic Pi.app/Contents/Resources/app',  # Finally standard dirs
                      '/Applications/Sonic Pi.app',
                      '/opt/sonic-pi/app',
-                     '/opt/sonic-pi-*/app',
+                     '/usr/bin/sonic-pi-*',
+                     '/usr/bin/sonic-pi',
                      '/usr/lib/sonic-pi')
     for pp in path + default_paths:
         for p in glob.glob(pp):
