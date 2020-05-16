@@ -340,7 +340,7 @@ def start_server(path):
                      '/usr/bin/sonic-pi',
                      '/usr/lib/sonic-pi')
     for pp in path + default_paths:
-        for p in glob.glob(pp):
+        for p in reversed(glob.glob(pp)):
             inst = Installation(p)
             if inst.exists():
                 print("Found installation at: {}".format(inst.base))
