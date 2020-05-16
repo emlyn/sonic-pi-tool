@@ -73,14 +73,18 @@ class Server:
         'line': {'bold': True, 'fg': 'magenta'},
         'code': {}}
 
-    def __init__(self, host, cmd_port, osc_port):
+    def __init__(self, host, cmd_port, osc_port, send_preamble):
         self.client_name = 'SONIC_PI_TOOL_PY'
         self.host = host
         self.cmd_port = self.determine_command_port(cmd_port)
         self.osc_port = osc_port
         # fix for https://github.com/repl-electric/sonic-pi.el/issues/19#issuecomment-345222832
-        self.prefix = '@osc_server||=SonicPi::OSC::UDPServer.new' + \
-                      '({},use_decoder_cache:true) #__nosave__\n'.format(self.cmd_port)
+        if send_preamble:
+            print("Enabling OSC preamble")
+            self.preamble = '@osc_server||=SonicPi::OSC::UDPServer.new' + \
+                            '({},use_decoder_cache:true) #__nosave__\n'.format(self.cmd_port)
+        else:
+            self.preamble = ''
         self.cmd_client = None
         self.osc_client = None
 
@@ -139,7 +143,7 @@ class Server:
         self.send_cmd('/stop-all-jobs')
 
     def run_code(self, code):
-        self.send_cmd('/run-code', self.prefix + code)
+        self.send_cmd('/run-code', self.preamble + code)
 
     def start_recording(self):
         self.send_cmd('/start-recording')
@@ -265,9 +269,11 @@ CONTEXT_SETTINGS = dict(token_normalize_func=lambda x:
               help="Port number of Sonic Pi command server (-ve = determine from logs if possible)")
 @click.option('--osc-port', default=4560,
               help="Port number of Sonic Pi OSC cue server")
+@click.option('--preamble/--no-preamble',
+              help="Send preamble to enable OSC server (needed on some Sonic Pi versions)")
 @click.pass_context
-def cli(ctx, host, cmd_port, osc_port):
-    ctx.obj = Server(host, cmd_port, osc_port)
+def cli(ctx, host, cmd_port, osc_port, preamble):
+    ctx.obj = Server(host, cmd_port, osc_port, preamble)
 
 
 @cli.command(help="Check if Sonic Pi server is running.")
