@@ -318,10 +318,13 @@ def osc(ctx, path, args):
               help="Path to Sonic Pi app to try before defaults, "
               "may be specified multiple times")
 def start_server(path):
-    default_paths = ('./Sonic Pi.app',  # Check current dir first
+    default_paths = ('./Sonic Pi.app/Contents/Resources/app',  # Check current dir first
+                     './Sonic Pi.app',
                      './app',
-                     '~/Applications/Sonic Pi.app',  # Then home dir
-                     '/Applications/Sonic Pi.app',  # Finally standard dirs
+                     '~/Applications/Sonic Pi.app/Contents/Resources/app',  # Then home dir
+                     '~/Applications/Sonic Pi.app',
+                     '/Applications/Sonic Pi.app/Contents/Resources/app',  # Finally standard dirs
+                     '/Applications/Sonic Pi.app',
                      '/opt/sonic-pi/app',
                      '/opt/sonic-pi-*/app',
                      '/usr/lib/sonic-pi')
