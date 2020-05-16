@@ -222,7 +222,7 @@ CONTEXT_SETTINGS = dict(token_normalize_func=lambda x:
               help="IP or hostname of Sonic Pi server")
 @click.option('--port', default=4557,
               help="Port number of Sonic Pi server")
-@click.option('--osc-port', default=4559,
+@click.option('--osc-port', default=4560,
               help="Port number of Sonic Pi OSC cue server")
 @click.pass_context
 def cli(ctx, host, port, osc_port):
