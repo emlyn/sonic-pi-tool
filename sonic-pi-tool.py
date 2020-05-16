@@ -7,6 +7,7 @@ import click
 import glob
 import os
 import platform
+import re
 import socket
 import subprocess
 import sys
@@ -73,15 +74,29 @@ class Server:
         'code': {}}
 
     def __init__(self, host, cmd_port, osc_port):
-        # fix for https://github.com/repl-electric/sonic-pi.el/issues/19#issuecomment-345222832
-        self.prefix = '@osc_server||=SonicPi::OSC::UDPServer.new' + \
-                      '(4559,use_decoder_cache:true) #__nosave__\n'
         self.client_name = 'SONIC_PI_TOOL_PY'
         self.host = host
-        self.cmd_port = cmd_port
+        self.cmd_port = self.determine_command_port(cmd_port)
         self.osc_port = osc_port
+        # fix for https://github.com/repl-electric/sonic-pi.el/issues/19#issuecomment-345222832
+        self.prefix = '@osc_server||=SonicPi::OSC::UDPServer.new' + \
+                      '({},use_decoder_cache:true) #__nosave__\n'.format(self.cmd_port)
         self.cmd_client = None
         self.osc_client = None
+
+    def determine_command_port(self, default):
+        if default > 0:
+            print("Using command port of", default)
+            return default
+        with open(os.path.expanduser("~/.sonic-pi/log/server-output.log")) as f:
+            for line in f:
+                m = re.search('^Listen port: *([0-9]+)', line)
+                if m:
+                    p = int(m.groups()[0])
+                    print("Found command port in log:", p)
+                    return p
+        print("Couldn't find command port in log, using", -default)
+        return -default
 
     def send_cmd(self, msg, *args):
         if self.cmd_client is None:
@@ -221,22 +236,22 @@ CONTEXT_SETTINGS = dict(token_normalize_func=lambda x:
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.option('--host', default='127.0.0.1',
               help="IP or hostname of Sonic Pi server")
-@click.option('--port', default=4557,
-              help="Port number of Sonic Pi server")
+@click.option('--cmd-port', default=-4557,
+              help="Port number of Sonic Pi command server (-ve = determine from logs if possible)")
 @click.option('--osc-port', default=4560,
               help="Port number of Sonic Pi OSC cue server")
 @click.pass_context
-def cli(ctx, host, port, osc_port):
-    ctx.obj = Server(host, port, osc_port)
+def cli(ctx, host, cmd_port, osc_port):
+    ctx.obj = Server(host, cmd_port, osc_port)
 
 
 @cli.command(help="Check if Sonic Pi server is running.")
 @click.pass_context
 def check(ctx):
     if ctx.obj.server_port_in_use():
-        print("Sonic Pi server listening on port 4557")
+        print("Sonic Pi server listening on port", ctx.obj.cmd_port)
     else:
-        print("Sonic Pi server NOT listening on port 4557")
+        print("Sonic Pi server NOT listening on port", ctx.obj.cmd_port)
         sys.exit(1)
 
 
