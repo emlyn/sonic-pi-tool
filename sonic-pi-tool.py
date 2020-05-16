@@ -4,6 +4,7 @@
 from __future__ import print_function
 
 import click
+import glob
 import os
 import platform
 import socket
@@ -286,22 +287,23 @@ def start_server(path):
                      '~/Applications/Sonic Pi.app',  # Then home dir
                      '/Applications/Sonic Pi.app',  # Finally standard dirs
                      '/opt/sonic-pi/app',
+                     '/opt/sonic-pi-*/app',
                      '/usr/lib/sonic-pi')
-    for p in path + default_paths:
-        inst = Installation(p)
-        if inst.exists():
-            print("Found installation at: {}".format(inst.base))
-            print("Running: {} {}".format(inst.ruby_path(),
-                                          inst.server_path()))
-            args = [inst.ruby_path(), '-E', 'utf-8']
-            if platform.system in ['Darwin', 'Windows']:
-                args.append('--enable-frozen-string-literal')
-            args.append(inst.server_path())
-            run(args)
-            break
-    else:
-        print("I couldn't find the Sonic Pi server executable :(")
-        sys.exit(1)
+    for pp in path + default_paths:
+        for p in glob.glob(pp):
+            inst = Installation(p)
+            if inst.exists():
+                print("Found installation at: {}".format(inst.base))
+                print("Running: {} {}".format(inst.ruby_path(),
+                                              inst.server_path()))
+                args = [inst.ruby_path(), '-E', 'utf-8']
+                if platform.system in ['Darwin', 'Windows']:
+                    args.append('--enable-frozen-string-literal')
+                args.append(inst.server_path())
+                run(args)
+                return
+    print("I couldn't find the Sonic Pi server executable :(")
+    sys.exit(1)
 
 
 @cli.command(help="Stop all jobs running on the server.")
