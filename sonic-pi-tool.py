@@ -11,6 +11,7 @@ import re
 import socket
 import subprocess
 import sys
+import threading
 import time
 
 from oscpy.server import OSCThreadServer
@@ -21,6 +22,10 @@ try:
 except ImportError:
     from HTMLParser import HTMLParser
     html = HTMLParser()
+
+
+SERVER_OUTPUT = "~/.sonic-pi/log/server-output.log"
+SERVER_ERRORS = "~/.sonic-pi/log/server-errors.log"
 
 
 def parse_val(s):
@@ -37,19 +42,35 @@ def parse_val(s):
     return s
 
 
-def run_process(*popenargs, **kwargs):
-    process = subprocess.Popen(*popenargs, **kwargs)
+def tee_stream(stream, fname, prefix=''):
+    with open(os.path.expanduser(fname), 'w') as f:
+        for line in stream:
+            f.write(line)
+            f.flush()
+            print(prefix + line, end='', flush=True)
+
+
+def run_process(args, outfile, errfile):
+    process = subprocess.Popen(args, text=True,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out_thread = threading.Thread(target=tee_stream, args=(process.stdout, outfile))
+    err_thread = threading.Thread(target=tee_stream, args=(process.stderr, errfile, 'ERROR: '))
     try:
-        stdout, stderr = process.communicate(input)
+        out_thread.daemon = True
+        err_thread.daemon = True
+        out_thread.start()
+        err_thread.start()
+        process.wait()
     except Exception:
         process.kill()
         process.wait()
         raise
-    retcode = process.poll()
-    if retcode:
+    finally:
+        out_thread.join(timeout=10)
+        err_thread.join(timeout=10)
+    if proceses.returncode:
         raise subprocess.CalledProcessError(
-            retcode, process.args, output=stdout, stderr=stderr)
-    return retcode, stdout, stderr
+            proceses.returncode, process.args)
 
 
 class Server:
@@ -93,7 +114,7 @@ class Server:
             print("Using command port of", default)
             return default
         try:
-            with open(os.path.expanduser("~/.sonic-pi/log/server-output.log")) as f:
+            with open(os.path.expanduser(SERVER_OUTPUT)) as f:
                 for line in f:
                     m = re.search('^Listen port: *([0-9]+)', line)
                     if m:
@@ -258,7 +279,7 @@ class Installation:
             args.append('--enable-frozen-string-literal')
         args.append(self.server_path())
         print("Running:", ' '.join(args))
-        run_process(args)
+        run_process(args, SERVER_OUTPUT, SERVER_ERRORS)
 
 
 CONTEXT_SETTINGS = dict(token_normalize_func=lambda x:
