@@ -350,11 +350,14 @@ def osc(ctx, path, args):
 def start_server(path):
     default_paths = ('./Sonic Pi.app/Contents/Resources/app',  # Check current dir first
                      './Sonic Pi.app',
+                     './Sonic Pi/app',
                      './app',
                      '~/Applications/Sonic Pi.app/Contents/Resources/app',  # Then home dir
                      '~/Applications/Sonic Pi.app',
+                     '~/Sonic Pi/app',
                      '/Applications/Sonic Pi.app/Contents/Resources/app',  # Finally standard dirs
                      '/Applications/Sonic Pi.app',
+                     'c:/Program Files/Sonic Pi/app',
                      '/opt/sonic-pi-*/app',
                      '/opt/sonic-pi/app',
                      '/usr/bin/sonic-pi-*',
