@@ -68,9 +68,9 @@ def run_process(args, outfile, errfile):
     finally:
         out_thread.join(timeout=10)
         err_thread.join(timeout=10)
-    if proceses.returncode:
+    if process.returncode:
         raise subprocess.CalledProcessError(
-            proceses.returncode, process.args)
+            process.returncode, process.args)
 
 
 class Server:
