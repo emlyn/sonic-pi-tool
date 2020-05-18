@@ -94,14 +94,15 @@ class Server:
         'line': {'bold': True, 'fg': 'magenta'},
         'code': {}}
 
-    def __init__(self, host, cmd_port, osc_port, send_preamble):
+    def __init__(self, host, cmd_port, osc_port, send_preamble, verbose):
         self.client_name = 'SONIC_PI_TOOL_PY'
+        self.verbose = verbose
         self.host = host
         self.cmd_port = self.determine_command_port(cmd_port)
         self.osc_port = osc_port
         # fix for https://github.com/repl-electric/sonic-pi.el/issues/19#issuecomment-345222832
         if send_preamble:
-            print("Enabling OSC preamble")
+            self.log("Enabling OSC preamble")
             self.preamble = '@osc_server||=SonicPi::OSC::UDPServer.new' + \
                             '({},use_decoder_cache:true) #__nosave__\n'.format(self.cmd_port)
         else:
@@ -109,9 +110,13 @@ class Server:
         self.cmd_client = None
         self.osc_client = None
 
+    def log(self, msg, v=False):
+        if v or self.verbose:
+            print(msg)
+
     def determine_command_port(self, default):
         if default > 0:
-            print("Using command port of", default)
+            self.log("Using command port of {}".format(default))
             return default
         try:
             with open(os.path.expanduser(SERVER_OUTPUT)) as f:
@@ -119,11 +124,11 @@ class Server:
                     m = re.search('^Listen port: *([0-9]+)', line)
                     if m:
                         p = int(m.groups()[0])
-                        print("Found command port in log:", p)
+                        self.log("Found command port in log: {}".format(p))
                         return p
         except FileNotFoundError:
             pass
-        print("Couldn't find command port in log, using", -default)
+        self.log("Couldn't find command port in log, using {}".format(-default))
         return -default
 
     def send_cmd(self, msg, *args):
@@ -148,19 +153,19 @@ class Server:
 
     def check_if_running(self):
         cmd_listening = self.port_in_use(self.cmd_port)
-        print("The command port ({}) is {}in use".format(self.cmd_port,
-                                                         "" if cmd_listening else "not "))
+        self.log("The command port ({}) is {}in use".format(self.cmd_port,
+                                                            "" if cmd_listening else "not "))
         osc_listening = self.port_in_use(self.osc_port)
-        print("The OSC port ({}) is {}in use".format(self.osc_port,
-                                                     "" if osc_listening else "not "))
+        self.log("The OSC port ({}) is {}in use".format(self.osc_port,
+                                                        "" if osc_listening else "not "))
         if cmd_listening and osc_listening:
-            print("Sonic Pi appears to be running")
+            self.log("Sonic Pi appears to be running", True)
             return 0
         elif not cmd_listening and not osc_listening:
-            print("Sonic Pi is not running")
+            self.log("Sonic Pi is not running", True)
             return 1
         else:
-            print("Sonic Pi is not running properly, or there's an issue with the port numbers")
+            self.log("Sonic Pi is not running properly, or there's an issue with the port numbers", True)
             return 2
 
     def stop_all_jobs(self):
@@ -281,7 +286,7 @@ class Installation:
         if platform.system in ['Darwin', 'Windows']:
             args.append('--enable-frozen-string-literal')
         args.append(self.server_path())
-        print("Running:", ' '.join(args))
+        self.log("Running: {}".format(' '.join(args)))
         run_process(args, SERVER_OUTPUT, SERVER_ERRORS)
 
 
@@ -298,9 +303,11 @@ CONTEXT_SETTINGS = dict(token_normalize_func=lambda x:
               help="Port number of Sonic Pi OSC cue server")
 @click.option('--preamble/--no-preamble',
               help="Send preamble to enable OSC server (needed on some Sonic Pi versions)")
+@click.option('--verbose/--no-verbose',
+              help="Print more information to help with debugging")
 @click.pass_context
-def cli(ctx, host, cmd_port, osc_port, preamble):
-    ctx.obj = Server(host, cmd_port, osc_port, preamble)
+def cli(ctx, host, cmd_port, osc_port, preamble, verbose):
+    ctx.obj = Server(host, cmd_port, osc_port, preamble, verbose)
 
 
 @cli.command(help="Check if Sonic Pi server is running.")
@@ -388,15 +395,10 @@ def stop(ctx):
 def logs(ctx):
     err = ctx.obj.follow_logs()
     if err:
-        print("""error: Unable to listen for Sonic Pi server logs, address
+        ctx.obj.log("""error: Unable to listen for Sonic Pi server logs, address
 already in use. This may be because the Sonic Pi GUI is running and already
 listening on the desired port. If the GUI is running this command cannot
-function, try running just the Sonic Pi server.""")
-        sys.exit(1)
-    elif err:
-        print("Unexpected error: {}\n".format(err))
-        print("Please report this error at "
-              "https://github.com/emlyn/sonic-pi-tool/issues")
+        function, try running just the Sonic Pi server.""", True)
         sys.exit(1)
 
 
@@ -405,7 +407,7 @@ function, try running just the Sonic Pi server.""")
 @click.pass_context
 def record(ctx, path):
     ctx.obj.start_recording()
-    print("Recording started, saving to {}".format(path))
+    ctx.obj.log("Recording started, saving to {}".format(path))
     input("Press Enter to stop the recording...")
     ctx.obj.stop_and_save_recording(path)
 
