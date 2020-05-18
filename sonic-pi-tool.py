@@ -74,6 +74,8 @@ def run_process(args, outfile, errfile):
 
 
 class Server:
+    preamble = '@osc_server||=SonicPi::OSC::UDPServer.new' + \
+               '({},use_decoder_cache:true) #__nosave__\n'
     styles = {
         # Info message
         'info': {'bold': True, 'reverse': True},
@@ -98,15 +100,11 @@ class Server:
         self.client_name = 'SONIC_PI_TOOL_PY'
         self.verbose = verbose
         self.host = host
-        self.cmd_port = self.determine_command_port(cmd_port)
+        self._cmd_port = cmd_port
+        self._cached_cmd_port = None
         self.osc_port = osc_port
         # fix for https://github.com/repl-electric/sonic-pi.el/issues/19#issuecomment-345222832
-        if send_preamble:
-            self.log("Enabling OSC preamble")
-            self.preamble = '@osc_server||=SonicPi::OSC::UDPServer.new' + \
-                            '({},use_decoder_cache:true) #__nosave__\n'.format(self.cmd_port)
-        else:
-            self.preamble = ''
+        self.send_preamble = send_preamble
         self.cmd_client = None
         self.osc_client = None
 
@@ -131,9 +129,19 @@ class Server:
         self.log("Couldn't find command port in log, using {}".format(-default))
         return -default
 
+    def get_cmd_port(self):
+        if self._cached_cmd_port is None:
+            self._cached_cmd_port = self.determine_command_port(self._cmd_port)
+        return self._cached_cmd_port
+
+    def get_preamble(self):
+        if self.send_preamble:
+            return Server.preamble.format(self.get_cmd_port())
+        return ''
+
     def send_cmd(self, msg, *args):
         if self.cmd_client is None:
-            self.cmd_client = OSCClient(self.host, self.cmd_port,
+            self.cmd_client = OSCClient(self.host, self.get_cmd_port(),
                                         encoding='utf8')
         self.cmd_client.send_message(msg, (self.client_name,) + args)
 
@@ -152,8 +160,8 @@ class Server:
         return False
 
     def check_if_running(self):
-        cmd_listening = self.port_in_use(self.cmd_port)
-        self.log("The command port ({}) is {}in use".format(self.cmd_port,
+        cmd_listening = self.port_in_use(self.get_cmd_port())
+        self.log("The command port ({}) is {}in use".format(self.get_cmd_port(),
                                                             "" if cmd_listening else "not "))
         osc_listening = self.port_in_use(self.osc_port)
         self.log("The OSC port ({}) is {}in use".format(self.osc_port,
@@ -172,7 +180,7 @@ class Server:
         self.send_cmd('/stop-all-jobs')
 
     def run_code(self, code):
-        self.send_cmd('/run-code', self.preamble + code)
+        self.send_cmd('/run-code', self.get_preamble() + code)
 
     def start_recording(self):
         self.send_cmd('/start-recording')
