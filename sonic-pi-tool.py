@@ -252,26 +252,29 @@ class Installation:
         self.base = os.path.expanduser(base)
         self.ruby = None
         for i, path in enumerate(Installation.ruby_paths):
-            if os.path.isfile(os.path.join(base, path)):
+            if os.path.isfile(self.expand_path(path)):
                 self.ruby = i
                 break
         self.server = None
         for i, path in enumerate(Installation.server_paths):
-            if os.path.isfile(os.path.join(base, path)):
+            if os.path.isfile(self.expand_path(path)):
                 self.server = i
                 break
 
     def exists(self):
         return self.server is not None
 
+    def expand_path(self, path):
+        return os.path.normpath(os.path.join(self.base, path))
+
     def ruby_path(self):
         if self.ruby is None:
             return 'ruby'
         else:
-            return os.path.join(self.base, Installation.ruby_paths[self.ruby])
+            return self.expand_path(Installation.ruby_paths[self.ruby])
 
     def server_path(self):
-        return os.path.join(self.base, Installation.server_paths[self.server])
+        return self.expand_path(Installation.server_paths[self.server])
 
     def run(self):
         args = [self.ruby_path(), '-E', 'utf-8']
