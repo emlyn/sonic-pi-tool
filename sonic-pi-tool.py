@@ -47,11 +47,13 @@ def tee_stream(stream, fname, prefix=''):
         for line in stream:
             f.write(line)
             f.flush()
-            print(prefix + line, end='', flush=True)
+            print(prefix + line, end='')
+            sys.stdout.flush()
+
 
 
 def run_process(args, outfile, errfile):
-    process = subprocess.Popen(args, text=True,
+    process = subprocess.Popen(args, universal_newlines=True,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out_thread = threading.Thread(target=tee_stream, args=(process.stdout, outfile))
     err_thread = threading.Thread(target=tee_stream, args=(process.stderr, errfile, 'ERROR: '))
@@ -157,11 +159,15 @@ class Server:
         self.osc_client.send_message(path, [parse_val(s) for s in args])
 
     def port_in_use(self, port):
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            try:
-                sock.bind(('127.0.0.1', port))
-            except OSError:
-                return True
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.bind(('127.0.0.1', port))
+        except OSError:
+            return True
+        except socket.error:
+            return True
+        finally:
+            sock.close()
         return False
 
     def check_if_running(self):
