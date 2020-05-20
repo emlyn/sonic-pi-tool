@@ -17,7 +17,7 @@ so it's not hard to install manually:
 
 ```sh
 # Install dependencies:
-pip install oscpy click
+pip install click oscpy psutil
 
 # Download script:
 curl -O https://raw.githubusercontent.com/emlyn/sonic-pi-tool/master/sonic-pi-tool.py
@@ -35,19 +35,38 @@ but it hasn't been tested extensively, so if you have trouble running it please 
 
 ## Usage
 
-- [check](#check)
-- [eval](#eval)
-- [eval-file](#eval-file)
-- [eval-stdin](#eval-stdin)
-- [run-file](#run-file)
-- [osc](#osc)
-- [stop](#stop)
-- [logs](#logs)
-- [start-server](#start-server)
-- [record](#record)
+### Options
 
+Options common to most or all commands:
 
-### `check`
+- `--host`: The host name or IP address to use when communicating with the Sonic Pi server.
+- `--cmd-port`: The port number on which the Sonic Pi server listens for incoming commands.
+If this is negative, try to find the port number in the Sonic Pi server-log file,
+and fall back to the absolute value specified if it can't be found in the log file.
+- `--osc-port`: The port number on which the Sonic Pi server listens for incoming OSC cues.
+- `--preamble` / `--no-preamble`: Some versions of Sonic Pi, when started without the GUI,
+fail to initialise the OSC server. This adds a bit of code at the start of any evaluated code
+to initialise the OSC server if it has not already been initialised.
+- `--verbose` / `--no-verbose`: Print out more information to help with debugging.
+- `--help` (or `-h`): Display
+
+### Commands
+
+The available commands are:
+
+- [check](#check): Check if Sonic Pi is running.
+- [start-server](#start-server): Start Sonic Pi server process.
+- [logs](#logs): Follow logs from Sonic Pi server process.
+- [eval](#eval): Evaluate Sonic Pi code from command line.
+- [eval-file](#eval-file): Evaluate Sonic Pi code from a file.
+- [eval-stdin](#eval-stdin): Evaluate Sonic Pi code from stdin.
+- [run-file](#run-file): Run a file in Sonic Pi without sending contents.
+- [osc](#osc): Send an OSC message to Sonic Pi (or other OSC server).
+- [record](#record): Record Sonic Pi sound to a wav file.
+- [stop](#stop): Stop any running Sonic Pi code.
+- [shutdown](#shutdown): Shut down any running Sonic Pi processes.
+
+#### `check`
 
 Used to check if the Sonic Pi server is running. If the server isn't running
 many of the tool's commands (such as `eval`) will not work.
@@ -61,13 +80,53 @@ sonic-pi-tool.py check
 ```
 
 
+### `start-server`
+
+Attempts start the Sonic Pi server, if the executable can be found.
+Searches a few standard locations, first in the current directory,
+then the users home directory
+and finally some standard install locations.
+
+If it is unable to find your installation, you can pass the location in the `--path` option.
+Please also consider raising an issue including the path to your install,
+and I will add it to the list of search paths.
+
+Not currently supported on Windows.
+
+```sh
+sonic-pi-tool.py start-server
+# Sonic Pi server booting...
+# Using protocol: udp
+# Detecting port numbers...
+# ...
+```
+
+
+### `logs`
+
+Prints out log messages emitted by the Sonic Pi server.
+
+This command won't succeed if the Sonic Pi GUI is running as that will already
+be consuming the logs itself.
+
+```sh
+sonic-pi-tool.py logs
+#
+# [Run 2, Time 32.7]
+#  └ synth :beep, {note: 65.0, release: 0.1, amp: 0.9741}
+#
+# [Run 2, Time 32.8]
+#  └ synth :beep, {note: 39.0, release: 0.1, amp: 0.9727}
+```
+
+
 ### `eval`
 
 Take a string of Sonic Pi code and send it to the Sonic Pi server to be
 played.
 
 ```sh
-sonic-pi-tool.py eval "play :C4"
+sonic-pi-tool.py eval "use_real_time; play :C4"
 # *ding*
 ```
 
@@ -117,6 +176,18 @@ sonic-pi-tool.py osc /trigger/foo 123
 ```
 
 
+### `record`
+
+Record the audio output of a Sonic Pi session to a local file.
+Stop and save the recording when the Enter key is pressed.
+
+```sh
+sonic-pi-tool.py record /tmp/output.wav
+# Recording started, saving to /tmp/output.wav.
+# Press Enter to stop the recording...
+```
+
+
 ### `stop`
 
 Stop all jobs running on the Sonic Pi server, stopping the music.
@@ -124,24 +195,6 @@ Stop all jobs running on the Sonic Pi server, stopping the music.
 ```sh
 sonic-pi-tool.py stop
 # *silence*
-```
-
-
-### `logs`
-
-Prints out log messages emitted by the Sonic Pi server.
-
-This command won't succeed if the Sonic Pi GUI is running as it will be
-consuming the logs already.
-
-```sh
-sonic-pi-tool.py logs
-#
-# [Run 2, Time 32.7]
-#  └ synth :beep, {note: 65.0, release: 0.1, amp: 0.9741}
-#
-# [Run 2, Time 32.8]
-#  └ synth :beep, {note: 39.0, release: 0.1, amp: 0.9727}
 ```
 
 
@@ -154,40 +207,6 @@ as these can sometimes prevent Sonic Pi from starting up again.
 ``` sh
 sonic-pi-tool.py shutdown
 # Sonic Pi has been shut down
-```
-
-
-### `start-server`
-
-Attempts start the Sonic Pi server, if the executable can be found.
-Searches a few standard locations, first in the current directory,
-then the users home directory
-and finally some standard install locations.
-
-If it is unable to find your installation, you can pass the location in the `--path` option.
-Please also consider raising an issue including the path to your install,
-and I will add it to the list of search paths.
-
-Not currently supported on Windows.
-
-```sh
-sonic-pi-tool.py start-server
-# Sonic Pi server booting...
-# Using protocol: udp
-# Detecting port numbers...
-# ...
-```
-
-
-### `record`
-
-Record the audio output of a Sonic Pi session to a local file.
-Stop and save the recording when the Enter key is pressed.
-
-```sh
-sonic-pi-tool.py record /tmp/output.wav
-# Recording started, saving to /tmp/output.wav.
-# Press Enter to stop the recording...
 ```
 
 
