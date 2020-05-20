@@ -23,6 +23,10 @@ except ImportError:
     from HTMLParser import HTMLParser
     html = HTMLParser()
 
+try:
+    raw_input
+except NameError:
+    raw_input = input
 
 SERVER_OUTPUT = "~/.sonic-pi/log/server-output.log"
 SERVER_ERRORS = "~/.sonic-pi/log/server-errors.log"
@@ -433,7 +437,7 @@ listening on the desired port. If the GUI is running this command cannot
 def record(ctx, path):
     ctx.obj.start_recording()
     ctx.obj.log("Recording started, saving to {}".format(path))
-    input("Press Enter to stop the recording...")
+    raw_input("Press Enter to stop the recording...")
     ctx.obj.stop_and_save_recording(path)
 
 
