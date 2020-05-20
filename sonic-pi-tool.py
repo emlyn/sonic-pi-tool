@@ -315,7 +315,8 @@ class Installation:
         run_process(args, SERVER_OUTPUT, SERVER_ERRORS)
 
 
-CONTEXT_SETTINGS = dict(token_normalize_func=lambda x:
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'],
+                        token_normalize_func=lambda x:
                         x.lower().replace('-', '_'))
 
 
