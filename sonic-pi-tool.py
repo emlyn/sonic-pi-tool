@@ -172,7 +172,8 @@ class Server:
         self.log("The OSC port ({}) is {}in use".format(self.osc_port,
                                                         "" if osc_listening else "not "))
         if cmd_listening and osc_listening:
-            self.log("Sonic Pi appears to be running", True)
+            self.log("Sonic Pi is running, and listening on port {} for commands and {} for OSC"
+                     .format(self.get_cmd_port(), self.osc_port), True)
             return 0
         elif not cmd_listening and not osc_listening:
             self.log("Sonic Pi is not running", True)
