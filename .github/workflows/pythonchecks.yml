@@ -30,12 +30,13 @@ jobs:
     - name: Lint with flake8
       run: flake8
     - name: Check code security with bandit
-      run: bandit -ll .
+      run: bandit -ll -r .
     - name: Test run
       run: |
         set -e
         python sonic-pi-tool.py --help
-        python sonic-pi-tool.py check || true
-        python sonic-pi-tool.py --verbose eval 'play 60'
-        python sonic-pi-tool.py --verbose osc /foo '"bar"' baz 123 3.14
-        python sonic-pi-tool.py stop
+        ./sonic-pi-tool.py check || true
+        ./sonic-pi-tool.py --verbose eval 'play 60'
+        ./sonic-pi-tool.py --verbose osc /foo '"bar"' baz 123 3.14
+        ./sonic-pi-tool.py stop
+        ./sonic-pi-tool.py shutdown
