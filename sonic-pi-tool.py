@@ -4,6 +4,7 @@
 from __future__ import print_function
 
 import click
+import errno
 import glob
 import os
 import platform
@@ -53,8 +54,9 @@ def determine_command_port():
                 m = re.search('^Listen port: *([0-9]+)', line)
                 if m:
                     return int(m.groups()[0])
-    except FileNotFoundError:
-        pass
+    except EnvironmentError as e:
+        if e.errno != errno.ENOENT:
+            raise
 
 
 def tee_stream(stream, fname, prefix=''):
