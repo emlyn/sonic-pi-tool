@@ -36,7 +36,7 @@ jobs:
         set -e
         python sonic-pi-tool.py --help
         ./sonic-pi-tool.py check || true
-        ./sonic-pi-tool.py --verbose eval 'play 60'
+        ./sonic-pi-tool.py --verbose eval play 60
         ./sonic-pi-tool.py --verbose osc /foo '"bar"' baz 123 3.14
         ./sonic-pi-tool.py stop
         ./sonic-pi-tool.py shutdown

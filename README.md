@@ -48,7 +48,7 @@ and fall back to the absolute value specified if it can't be found in the log fi
 fail to initialise the OSC server. This adds a bit of code at the start of any evaluated code
 to initialise the OSC server if it has not already been initialised.
 - `--verbose` / `--no-verbose`: Print out more information to help with debugging.
-- `--help` (or `-h`): Display
+- `--help` (or `-h`): Display help information.
 
 ### Commands
 

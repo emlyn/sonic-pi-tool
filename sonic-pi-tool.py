@@ -420,10 +420,10 @@ def check(ctx):
 
 
 @cli.command(help="Send code to the server to be played.")
-@click.argument('code')
+@click.argument('code', nargs=-1, required=True)
 @click.pass_context
 def eval(ctx, code):
-    ctx.obj.run_code(code)
+    ctx.obj.run_code(' '.join(code))
 
 
 @cli.command(help="Send code from stdin to be played.")
