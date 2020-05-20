@@ -73,6 +73,15 @@ def run_process(args, outfile, errfile):
             process.returncode, process.args)
 
 
+class Logger:
+    def __init__(self, verbose):
+        self.verbose = verbose
+
+    def __call__(self, message, high=False):
+        if high or self.verbose:
+            print(message)
+
+
 class Server:
     preamble = '@osc_server||=SonicPi::OSC::UDPServer.new' + \
                '({},use_decoder_cache:true) #__nosave__\n'
@@ -96,9 +105,9 @@ class Server:
         'line': {'bold': True, 'fg': 'magenta'},
         'code': {}}
 
-    def __init__(self, host, cmd_port, osc_port, send_preamble, verbose):
+    def __init__(self, host, cmd_port, osc_port, send_preamble, logger):
         self.client_name = 'SONIC_PI_TOOL_PY'
-        self.verbose = verbose
+        self.log = logger
         self.host = host
         self._cmd_port = cmd_port
         self._cached_cmd_port = None
@@ -107,10 +116,6 @@ class Server:
         self.send_preamble = send_preamble
         self.cmd_client = None
         self.osc_client = None
-
-    def log(self, msg, v=False):
-        if v or self.verbose:
-            print(msg)
 
     def determine_command_port(self, default):
         if default > 0:
@@ -261,7 +266,8 @@ class Installation:
     server_paths = ['server/ruby/bin/sonic-pi-server.rb',
                     'server/bin/sonic-pi-server.rb']
 
-    def __init__(self, base):
+    def __init__(self, base, logger):
+        self.log = logger
         self.base = os.path.expanduser(base)
         self.ruby = None
         for i, path in enumerate(Installation.ruby_paths):
@@ -315,7 +321,8 @@ CONTEXT_SETTINGS = dict(token_normalize_func=lambda x:
               help="Print more information to help with debugging")
 @click.pass_context
 def cli(ctx, host, cmd_port, osc_port, preamble, verbose):
-    ctx.obj = Server(host, cmd_port, osc_port, preamble, verbose)
+    logger = Logger(verbose)
+    ctx.obj = Server(host, cmd_port, osc_port, preamble, logger)
 
 
 @cli.command(help="Check if Sonic Pi server is running.")
@@ -365,7 +372,8 @@ def osc(ctx, path, args):
 @click.option('--path', multiple=True, type=click.Path(exists=True),
               help="Path to Sonic Pi app to try before defaults, "
               "may be specified multiple times")
-def start_server(path):
+@click.pass_context
+def start_server(ctx, path):
     default_paths = ('./Sonic Pi.app/Contents/Resources/app',  # Check current dir first
                      './Sonic Pi.app',
                      './Sonic Pi/app',
@@ -381,11 +389,13 @@ def start_server(path):
                      '/usr/bin/sonic-pi-*',
                      '/usr/bin/sonic-pi',
                      '/usr/lib/sonic-pi')
+
+    logger = Logger(ctx.parent.params['verbose'])
     for pp in path + default_paths:
         for p in reversed(glob.glob(pp)):
-            inst = Installation(p)
+            inst = Installation(p, logger)
             if inst.exists():
-                print("Found installation at: {}".format(inst.base))
+                logger("Found installation at: {}".format(inst.base))
                 inst.run()
                 return
     print("I couldn't find the Sonic Pi server executable :(")
