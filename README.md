@@ -145,6 +145,18 @@ sonic-pi-tool.py logs
 ```
 
 
+### `shutdown`
+
+Shut down any Sonic Pi processes (started either with the GUI or the start-server command).
+Can be used to shut down any stray processes left if Sonic Pi fails to shut down correctly,
+as these can sometimes prevent Sonic Pi from starting up again.
+
+``` sh
+sonic-pi-tool.py shutdown
+# Sonic Pi has been shut down
+```
+
+
 ### `start-server`
 
 Attempts start the Sonic Pi server, if the executable can be found.

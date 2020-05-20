@@ -8,6 +8,7 @@ import errno
 import glob
 import os
 import platform
+import psutil
 import re
 import socket
 import subprocess
@@ -292,6 +293,59 @@ class Server:
         except Exception as e:
             return e
 
+    def kill_process(self, name, pred):
+        for p in psutil.process_iter():
+            if pred(p):
+                self.log("Found {} with pid {} at {}"
+                         .format(name, p.pid, p.exe()))
+                try:
+                    p.terminate()
+                    psutil.wait_procs([p], timeout=5)
+                except psutil.Error:
+                    pass
+                if not p.is_running():
+                    return True
+                self.log("Failed to terminate {} nicely, let's try something else"
+                         .format(name))
+                try:
+                    p.kill()
+                    psutil.wait_procs([p], timeout=2)
+                except psutil.Error:
+                    pass
+                if not p.is_running():
+                    return True
+                self.log("Error shutting down {}".format(name), True)
+                return False
+        return False
+
+    def shutdown_sonic_pi(self):
+        full = False
+        full += self.kill_process('GUI', lambda p: p.name() == 'Sonic Pi')
+        full += self.kill_process('Server',
+                                  lambda p: p.name() == 'ruby'
+                                  and '/app/server/native/' in p.exe()
+                                  and [c for c in p.cmdline()
+                                       if c.endswith('/sonic-pi-server.rb')])
+        part = False
+        part += self.kill_process('SCSynth',
+                                  lambda p: p.name() == 'scsynth'
+                                  and '/app/server/native/' in p.exe())
+        part += self.kill_process('Erlang',
+                                  lambda p: p.name() == 'beam.smp'
+                                  and '/app/server/native/' in p.exe())
+        part += self.kill_process('o2m',
+                                  lambda p: p.name() == 'o2m'
+                                  and '/app/server/native/' in p.exe())
+        part += self.kill_process('m2o',
+                                  lambda p: p.name() == 'm2o'
+                                  and '/app/server/native/' in p.exe())
+        if full:
+            self.log("Sonic Pi has been shut down", True)
+        elif part:
+            self.log("Partial Sonic Pi processes have been shut down", True)
+        else:
+            self.log("No Sonic Pi processes were found to shut down", True)
+
 
 class Installation:
     ruby_paths = ['server/native/ruby/bin/ruby']
@@ -434,6 +488,12 @@ def start_server(ctx, path):
                 return
     print("I couldn't find the Sonic Pi server executable :(")
     sys.exit(1)
+
+
+@cli.command(help="Shut down any Sonic Pi processes.")
+@click.pass_context
+def shutdown(ctx):
+    ctx.obj.shutdown_sonic_pi()
 
 
 @cli.command(help="Stop all jobs running on the server.")
