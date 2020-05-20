@@ -51,7 +51,6 @@ def tee_stream(stream, fname, prefix=''):
             sys.stdout.flush()
 
 
-
 def run_process(args, outfile, errfile):
     process = subprocess.Popen(args, universal_newlines=True,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -185,7 +184,8 @@ class Server:
             self.log("Sonic Pi is not running", True)
             return 1
         else:
-            self.log("Sonic Pi is not running properly, or there's an issue with the port numbers", True)
+            self.log("Sonic Pi is not running properly, or there's an issue with the port numbers",
+                     True)
             return 2
 
     def stop_all_jobs(self):
