@@ -33,4 +33,9 @@ jobs:
       run: bandit -ll .
     - name: Test run
       run: |
+        set -e
+        python sonic-pi-tool.py --help
         python sonic-pi-tool.py check || true
+        python sonic-pi-tool.py --verbose eval 'play 60'
+        python sonic-pi-tool.py --verbose osc /foo '"bar"' baz 123 3.14
+        python sonic-pi-tool.py stop
