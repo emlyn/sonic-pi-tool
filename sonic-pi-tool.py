@@ -46,6 +46,17 @@ def parse_val(s):
     return s
 
 
+def determine_command_port():
+    try:
+        with open(os.path.expanduser(SERVER_OUTPUT)) as f:
+            for line in f:
+                m = re.search('^Listen port: *([0-9]+)', line)
+                if m:
+                    return int(m.groups()[0])
+    except FileNotFoundError:
+        pass
+
+
 def tee_stream(stream, fname, prefix=''):
     with open(os.path.expanduser(fname), 'w') as f:
         for line in stream:
@@ -119,30 +130,35 @@ class Server:
         self.osc_port = osc_port
         # fix for https://github.com/repl-electric/sonic-pi.el/issues/19#issuecomment-345222832
         self.send_preamble = send_preamble
-        self.cmd_client = None
-        self.osc_client = None
-
-    def determine_command_port(self, default):
-        if default > 0:
-            self.log("Using command port of {}".format(default))
-            return default
-        try:
-            with open(os.path.expanduser(SERVER_OUTPUT)) as f:
-                for line in f:
-                    m = re.search('^Listen port: *([0-9]+)', line)
-                    if m:
-                        p = int(m.groups()[0])
-                        self.log("Found command port in log: {}".format(p))
-                        return p
-        except FileNotFoundError:
-            pass
-        self.log("Couldn't find command port in log, using {}".format(-default))
-        return -default
+        self._cmd_client = None
+        self._osc_client = None
 
     def get_cmd_port(self):
         if self._cached_cmd_port is None:
-            self._cached_cmd_port = self.determine_command_port(self._cmd_port)
+            if self._cmd_port > 0:
+                self._cached_cmd_port = self._cmd_port
+                self.log("Using command port of {}".format(self._cached_cmd_port))
+            else:
+                self._cached_cmd_port = determine_command_port()
+                if self._cached_cmd_port is not None:
+                    self.log("Found command port in log: {}".format(self._cached_cmd_port))
+                else:
+                    self._cached_cmd_port = -self._cmd_port
+                    self.log(("Couldn't find command port in log, using {}"
+                              .format(self._cached_cmd_port)))
         return self._cached_cmd_port
+
+    def cmd_client(self):
+        if self._cmd_client is None:
+            self._cmd_client = OSCClient(self.host, self.get_cmd_port(),
+                                         encoding='utf8')
+        return self._cmd_client
+
+    def osc_client(self):
+        if self._osc_client is None:
+            self._osc_client = OSCClient(self.host, self.osc_port,
+                                         encoding='utf8')
+        return self._osc_client
 
     def get_preamble(self):
         if self.send_preamble:
@@ -150,16 +166,19 @@ class Server:
         return ''
 
     def send_cmd(self, msg, *args):
-        if self.cmd_client is None:
-            self.cmd_client = OSCClient(self.host, self.get_cmd_port(),
-                                        encoding='utf8')
-        self.cmd_client.send_message(msg, (self.client_name,) + args)
+        client = self.cmd_client()
+        self.log("Sending command to {}:{}: {} {}"
+                 .format(self.host, self.get_cmd_port(), msg,
+                         ', '.join(repr(v) for v in (self.client_name,) + args)))
+        client.send_message(msg, (self.client_name,) + args)
 
     def send_osc(self, path, args):
-        if self.osc_client is None:
-            self.osc_client = OSCClient(self.host, self.osc_port,
-                                        encoding='utf8')
-        self.osc_client.send_message(path, [parse_val(s) for s in args])
+        client = self.osc_client()
+        parsed = [parse_val(s) for s in args]
+        self.log("Sending OSC message to {}:{}: {} {}"
+                 .format(self.host, self.osc_port, path,
+                         ', '.join(repr(v) for v in parsed)))
+        client.send_message(path, parsed)
 
     def port_in_use(self, port):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
