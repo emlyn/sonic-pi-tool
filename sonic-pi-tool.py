@@ -343,15 +343,16 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'],
 
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.option('--host', default='127.0.0.1',
-              help="IP or hostname of Sonic Pi server")
+              help="IP or hostname of Sonic Pi server.")
 @click.option('--cmd-port', default=-4557,
-              help="Port number of Sonic Pi command server (-ve = determine from logs if possible)")
+              help="Port number of Sonic Pi command server "
+              "(-ve = determine from logs if possible).")
 @click.option('--osc-port', default=4560,
-              help="Port number of Sonic Pi OSC cue server")
+              help="Port number of Sonic Pi OSC cue server.")
 @click.option('--preamble/--no-preamble',
-              help="Send preamble to enable OSC server (needed on some Sonic Pi versions)")
+              help="Send preamble to enable OSC server (needed on some Sonic Pi versions).")
 @click.option('--verbose/--no-verbose',
-              help="Print more information to help with debugging")
+              help="Print more information to help with debugging.")
 @click.pass_context
 def cli(ctx, host, cmd_port, osc_port, preamble, verbose):
     logger = Logger(verbose)
@@ -393,7 +394,7 @@ def run_file(ctx, path):
     ctx.obj.run_code(cmd)
 
 
-@cli.command(help="Send an OSC cue to a running Sonic Pi script")
+@cli.command(help="Send an OSC cue to a running Sonic Pi script.")
 @click.argument('path', required=True)
 @click.argument('args', nargs=-1)
 @click.pass_context
@@ -404,7 +405,7 @@ def osc(ctx, path, args):
 @cli.command(help="Try to locate Sonic Pi server and start it.")
 @click.option('--path', multiple=True, type=click.Path(exists=True),
               help="Path to Sonic Pi app to try before defaults, "
-              "may be specified multiple times")
+              "may be specified multiple times.")
 @click.pass_context
 def start_server(ctx, path):
     default_paths = ('./Sonic Pi.app/Contents/Resources/app',  # Check current dir first
