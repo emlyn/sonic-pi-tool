@@ -52,11 +52,12 @@ but it hasn't been tested extensively, so if you have trouble running it please 
 Used to check if the Sonic Pi server is running. If the server isn't running
 many of the tool's commands (such as `eval`) will not work.
 
-This command returns a non-zero exit code if the server is not running.
+This command returns an exit code of zero if the server is running,
+one if it is not running, or two if it cannot determine whether it is running.
 
 ```sh
 sonic-pi-tool.py check
-# => Sonic Pi server listening on port 4557
+# Sonic Pi is running, and listening on port 4557 for commands and 4560 for OSC
 ```
 
 
@@ -112,7 +113,7 @@ Allows a running Sonic Pi script to receive data from or synchronise to an exter
 
 ``` sh
 sonic-pi-tool.py osc /trigger/foo 123
-# Triggers `sync "/osc/trigger/foo"` command running in Sonic Pi
+# Triggers `sync "/osc*/trigger/foo"` command running in Sonic Pi
 ```
 
 
@@ -147,14 +148,15 @@ sonic-pi-tool.py logs
 ### `start-server`
 
 Attempts start the Sonic Pi server, if the executable can be found.
-Searches a few standard locations, first in the current directory, then the users home directory
+Searches a few standard locations, first in the current directory,
+then the users home directory
 and finally some standard install locations.
 
 If it is unable to find your installation, you can pass the location in the `--path` option.
 Please also consider raising an issue including the path to your install,
 and I will add it to the list of search paths.
 
-Not supported on Windows.
+Not currently supported on Windows.
 
 ```sh
 sonic-pi-tool.py start-server
