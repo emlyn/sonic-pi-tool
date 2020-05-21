@@ -1,14 +1,13 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # coding: utf-8
 
-from __future__ import print_function
-
 import click
-import errno
 import glob
+import html
 import os
 import platform
 import psutil
+import queue
 import re
 import socket
 import subprocess
@@ -18,23 +17,6 @@ import time
 
 from oscpy.server import OSCThreadServer
 from oscpy.client import OSCClient
-
-try:
-    import html
-except ImportError:
-    from HTMLParser import HTMLParser
-    html = HTMLParser()
-
-try:
-    import queue
-except ImportError:
-    import Queue
-    queue = Queue
-
-try:
-    raw_input
-except NameError:
-    raw_input = input
 
 SERVER_OUTPUT = "~/.sonic-pi/log/server-output.log"
 SERVER_ERRORS = "~/.sonic-pi/log/server-errors.log"
@@ -61,9 +43,8 @@ def determine_command_port():
                 m = re.search('^Listen port: *([0-9]+)', line)
                 if m:
                     return int(m.groups()[0])
-    except EnvironmentError as e:
-        if e.errno != errno.ENOENT:
-            raise
+    except FileNotFoundError:
+        pass
 
 
 def tail(fname, func):
@@ -88,7 +69,7 @@ def background_tail(fname, func):
 
 
 def run_process(args, outfile, errfile):
-    return subprocess.Popen(args, universal_newlines=True, bufsize=1,
+    return subprocess.Popen(args, text=True, bufsize=1,
                             stdout=outfile, stderr=errfile)
 
 
@@ -184,15 +165,11 @@ class Server:
         client.send_message(path, parsed)
 
     def port_in_use(self, port):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            sock.bind(('127.0.0.1', port))
-        except OSError:
-            return True
-        except socket.error:
-            return True
-        finally:
-            sock.close()
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            try:
+                sock.bind(('127.0.0.1', port))
+            except OSError:
+                return True
         return False
 
     def check_if_running(self):
@@ -401,11 +378,14 @@ class Installation:
             if line.startswith('Sonic Pi Server successfully booted'):
                 q.put(True)
 
+        def errfun(line):
+            print("ERROR: " + line[:-1])
+
         with open(out, 'w') as outfile:
             with open(err, 'w') as errfile:
                 process = run_process(args, outfile, errfile)
                 background_tail(out, outfun)
-                background_tail(err, lambda l: print("ERROR: " + l[-1]))
+                background_tail(err, errfun)
                 ok = False
                 for _ in range(30):
                     try:
@@ -419,7 +399,7 @@ class Installation:
                     except queue.Empty:
                         ok = False
                 if process.poll() is not None:
-                    self.log("Sonic Pi server failed to start".True)
+                    self.log("Sonic Pi server failed to start", True)
                     return 1
                 if background:
                     if ok:
@@ -568,7 +548,7 @@ listening on the desired port. If the GUI is running this command cannot
 def record(ctx, path):
     ctx.obj.start_recording()
     ctx.obj.log("Recording started, saving to {}".format(path))
-    raw_input("Press Enter to stop the recording...")
+    input("Press Enter to stop the recording...")
     ctx.obj.stop_and_save_recording(path)
 
 
