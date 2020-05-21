@@ -19,16 +19,9 @@ import time
 from oscpy.server import OSCThreadServer
 from oscpy.client import OSCClient
 
-try:
-    import html
-except ImportError:
-    from HTMLParser import HTMLParser
-    html = HTMLParser()
+from HTMLParser import HTMLParser
 
-try:
-    raw_input
-except NameError:
-    raw_input = input
+html = HTMLParser()
 
 SERVER_OUTPUT = "~/.sonic-pi/log/server-output.log"
 SERVER_ERRORS = "~/.sonic-pi/log/server-errors.log"
