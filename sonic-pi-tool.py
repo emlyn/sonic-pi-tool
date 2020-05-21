@@ -26,6 +26,12 @@ except ImportError:
     html = HTMLParser()
 
 try:
+    import queue
+except ImportError:
+    import Queue
+    queue = Queue
+
+try:
     raw_input
 except NameError:
     raw_input = input
@@ -60,36 +66,30 @@ def determine_command_port():
             raise
 
 
-def tee_stream(stream, fname, prefix=''):
-    with open(os.path.expanduser(fname), 'w') as f:
-        for line in stream:
-            f.write(line)
-            f.flush()
-            print(prefix + line, end='')
-            sys.stdout.flush()
+def tail(fname, func):
+    with open(fname, 'r') as f:
+        line = ''
+        while True:
+            tmp = f.readline()
+            if tmp is not None:
+                line += tmp
+                if line.endswith('\n'):
+                    func(line)
+                    line = ''
+            else:
+                time.sleep(0.1)
+
+
+def background_tail(fname, func):
+    thread = threading.Thread(target=tail, args=(fname, func))
+    thread.daemon = True
+    thread.start()
+    return thread
 
 
 def run_process(args, outfile, errfile):
-    process = subprocess.Popen(args, universal_newlines=True,
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out_thread = threading.Thread(target=tee_stream, args=(process.stdout, outfile))
-    err_thread = threading.Thread(target=tee_stream, args=(process.stderr, errfile, 'ERROR: '))
-    try:
-        out_thread.daemon = True
-        err_thread.daemon = True
-        out_thread.start()
-        err_thread.start()
-        process.wait()
-    except Exception:
-        process.kill()
-        process.wait()
-        raise
-    finally:
-        out_thread.join(timeout=10)
-        err_thread.join(timeout=10)
-    if process.returncode:
-        raise subprocess.CalledProcessError(
-            process.returncode, process.args)
+    return subprocess.Popen(args, universal_newlines=True, bufsize=1,
+                            stdout=outfile, stderr=errfile)
 
 
 class Logger:
@@ -386,13 +386,55 @@ class Installation:
     def server_path(self):
         return self.expand_path(Installation.server_paths[self.server])
 
-    def run(self):
+    def run(self, background):
         args = [self.ruby_path(), '-E', 'utf-8']
         if platform.system in ['Darwin', 'Windows']:
             args.append('--enable-frozen-string-literal')
         args.append(self.server_path())
         self.log("Running: {}".format(' '.join(args)))
-        run_process(args, SERVER_OUTPUT, SERVER_ERRORS)
+        out = os.path.expanduser(SERVER_OUTPUT)
+        err = os.path.expanduser(SERVER_ERRORS)
+        q = queue.Queue(1)
+
+        def outfun(line):
+            print(line[:-1])
+            if line.startswith('Sonic Pi Server successfully booted'):
+                q.put(True)
+
+        with open(out, 'w') as outfile:
+            with open(err, 'w') as errfile:
+                process = run_process(args, outfile, errfile)
+                background_tail(out, outfun)
+                background_tail(err, lambda l: print("ERROR: " + l[-1]))
+                ok = False
+                for _ in range(30):
+                    try:
+                        process.wait(timeout=1)
+                        break
+                    except subprocess.TimeoutExpired:
+                        pass
+                    try:
+                        ok = q.get_nowait()
+                        break
+                    except queue.Empty:
+                        ok = False
+                if process.poll() is not None:
+                    self.log("Sonic Pi server failed to start".True)
+                    return 1
+                if background:
+                    if ok:
+                        self.log("Sonic Pi started, leaving it in the background now", True)
+                        return 0
+                    else:
+                        self.log("Sonic Pi doesn't seem to have started yet, "
+                                 "but leaving it in the background now", True)
+                        return 1
+                ret = process.wait()
+                if ret:
+                    self.log("Sonic Pi server quit with error code {}".format(ret), True)
+                    return 1
+                self.log("Sonic Pi server has now quit", True)
+                return 0
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'],
@@ -465,8 +507,10 @@ def osc(ctx, path, args):
 @click.option('--path', multiple=True, type=click.Path(exists=True),
               help="Path to Sonic Pi app to try before defaults, "
               "may be specified multiple times.")
+@click.option('--background/--foreground',
+              help="Run server process in the background.")
 @click.pass_context
-def start_server(ctx, path):
+def start_server(ctx, path, background):
     default_paths = ('./Sonic Pi.app/Contents/Resources/app',  # Check current dir first
                      './Sonic Pi.app',
                      './Sonic Pi/app',
@@ -489,8 +533,7 @@ def start_server(ctx, path):
             inst = Installation(p, logger)
             if inst.exists():
                 logger("Found installation at: {}".format(inst.base))
-                inst.run()
-                return
+                sys.exit(inst.run(background))
     print("I couldn't find the Sonic Pi server executable :(")
     sys.exit(1)
 
