@@ -295,7 +295,12 @@ class Server:
 
     def kill_process(self, name, pred):
         for p in psutil.process_iter():
-            if pred(p):
+            try:
+                # Put in a try block because it can throw if the process has stopped
+                v = pred(p)
+            except Exception:
+                v = False
+            if v:
                 self.log("Found {} with pid {} at {}"
                          .format(name, p.pid, p.exe()))
                 try:
