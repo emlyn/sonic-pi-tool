@@ -22,57 +22,6 @@ SERVER_OUTPUT = "~/.sonic-pi/log/server-output.log"
 SERVER_ERRORS = "~/.sonic-pi/log/server-errors.log"
 
 
-def parse_val(s):
-    try:
-        return int(s)
-    except ValueError:
-        pass
-    try:
-        return float(s)
-    except ValueError:
-        pass
-    if len(s) > 1 and s[0] == '"' and s[-1] == '"':
-        return s[1:-1]
-    return s
-
-
-def determine_command_port():
-    try:
-        with open(os.path.expanduser(SERVER_OUTPUT)) as f:
-            for line in f:
-                m = re.search('^Listen port: *([0-9]+)', line)
-                if m:
-                    return int(m.groups()[0])
-    except FileNotFoundError:
-        pass
-
-
-def tail(fname, func):
-    with open(fname, 'r') as f:
-        line = ''
-        while True:
-            tmp = f.readline()
-            if tmp is not None:
-                line += tmp
-                if line.endswith('\n'):
-                    func(line)
-                    line = ''
-            else:
-                time.sleep(0.1)
-
-
-def background_tail(fname, func):
-    thread = threading.Thread(target=tail, args=(fname, func))
-    thread.daemon = True
-    thread.start()
-    return thread
-
-
-def run_process(args, outfile, errfile):
-    return subprocess.Popen(args, text=True, bufsize=1,
-                            stdout=outfile, stderr=errfile)
-
-
 class Logger:
     def __init__(self, verbose):
         self.verbose = verbose
@@ -82,7 +31,147 @@ class Logger:
             print(message)
 
 
+class Installation:
+    """Represents a Sonic Pi installation. Used for starting the Sonic Pi server."""
+
+    default_paths = ('./Sonic Pi.app/Contents/Resources/app',  # Check current dir first
+                     './Sonic Pi.app',
+                     './Sonic Pi/app',
+                     './app',
+                     '~/Applications/Sonic Pi.app/Contents/Resources/app',  # Then home dir
+                     '~/Applications/Sonic Pi.app',
+                     '~/Sonic Pi/app',
+                     '/Applications/Sonic Pi.app/Contents/Resources/app',  # Finally standard dirs
+                     '/Applications/Sonic Pi.app',
+                     'c:/Program Files/Sonic Pi/app',
+                     '/opt/sonic-pi-*/app',
+                     '/opt/sonic-pi/app',
+                     '/usr/bin/sonic-pi-*',
+                     '/usr/bin/sonic-pi',
+                     '/usr/lib/sonic-pi')
+    ruby_paths = ['server/native/ruby/bin/ruby',
+                  'server/native/ruby/bin/ruby.exe']
+    server_paths = ['server/ruby/bin/sonic-pi-server.rb',
+                    'server/bin/sonic-pi-server.rb']
+
+    @staticmethod
+    def get_installation(paths, verbose):
+        logger = Logger(verbose)
+        for pp in paths + Installation.default_paths:
+            for p in reversed(glob.glob(pp)):
+                inst = Installation(p, logger)
+                if inst.exists():
+                    inst.log("Found installation at: {}".format(inst.base))
+                    return inst
+        logger("I couldn't find the Sonic Pi server executable :(", True)
+
+    def __init__(self, base, logger):
+        self.log = logger
+        self.base = os.path.expanduser(base)
+        self.ruby = None
+        for i, path in enumerate(Installation.ruby_paths):
+            if os.path.isfile(self.expand_path(path)):
+                self.ruby = i
+                break
+        self.server = None
+        for i, path in enumerate(Installation.server_paths):
+            if os.path.isfile(self.expand_path(path)):
+                self.server = i
+                break
+
+    def exists(self):
+        return self.server is not None
+
+    def expand_path(self, path):
+        return os.path.normpath(os.path.join(self.base, path))
+
+    def ruby_path(self):
+        if self.ruby is None:
+            return 'ruby'
+        else:
+            return self.expand_path(Installation.ruby_paths[self.ruby])
+
+    def server_path(self):
+        return self.expand_path(Installation.server_paths[self.server])
+
+    def run(self, background):
+        args = [self.ruby_path(), '-E', 'utf-8']
+        if platform.system in ['Darwin', 'Windows']:
+            args.append('--enable-frozen-string-literal')
+        args.append(self.server_path())
+        self.log("Running: {}".format(' '.join(args)))
+        out = os.path.expanduser(SERVER_OUTPUT)
+        err = os.path.expanduser(SERVER_ERRORS)
+        q = queue.Queue(1)
+
+        def outfun(line):
+            print(line[:-1])
+            if line.startswith('Sonic Pi Server successfully booted'):
+                q.put(True)
+
+        def errfun(line):
+            print("ERROR: " + line[:-1])
+
+        with open(out, 'w') as outfile:
+            with open(err, 'w') as errfile:
+                process = subprocess.Popen(args, text=True, bufsize=1,
+                                           stdout=outfile, stderr=errfile)
+                Installation.background_tail(out, outfun)
+                Installation.background_tail(err, errfun)
+                ok = False
+                for _ in range(30):
+                    try:
+                        process.wait(timeout=1)
+                        break
+                    except subprocess.TimeoutExpired:
+                        pass
+                    try:
+                        ok = q.get_nowait()
+                        break
+                    except queue.Empty:
+                        ok = False
+                if process.poll() is not None:
+                    self.log("Sonic Pi server failed to start", True)
+                    return 1
+                if background:
+                    if ok:
+                        self.log("Sonic Pi started, leaving it in the background now", True)
+                        return 0
+                    else:
+                        self.log("Sonic Pi doesn't seem to have started yet, "
+                                 "but leaving it in the background now", True)
+                        return 1
+                ret = process.wait()
+                if ret:
+                    self.log("Sonic Pi server quit with error code {}".format(ret), True)
+                    return 1
+                self.log("Sonic Pi server has now quit", True)
+                return 0
+
+    @staticmethod
+    def background_tail(fname, func):
+        def tail():
+            with open(fname, 'r') as f:
+                line = ''
+                while True:
+                    tmp = f.readline()
+                    if tmp is not None:
+                        line += tmp
+                        if line.endswith('\n'):
+                            func(line)
+                            line = ''
+                    else:
+                        time.sleep(0.1)
+
+        thread = threading.Thread(target=tail)
+        thread.daemon = True
+        thread.start()
+        return thread
+
+
 class Server:
+    """Represents a running instance of Sonic Pi."""
+
     preamble = '@osc_server||=SonicPi::OSC::UDPServer.new' + \
                '({},use_decoder_cache:true) #__nosave__\n'
     styles = {
@@ -105,9 +194,9 @@ class Server:
         'line': {'bold': True, 'fg': 'magenta'},
         'code': {}}
 
-    def __init__(self, host, cmd_port, osc_port, send_preamble, logger):
+    def __init__(self, host, cmd_port, osc_port, send_preamble, verbose):
         self.client_name = 'SONIC_PI_TOOL_PY'
-        self.log = logger
+        self.log = Logger(verbose)
         self.host = host
         self._cmd_port = cmd_port
         self._cached_cmd_port = None
@@ -123,7 +212,7 @@ class Server:
                 self._cached_cmd_port = self._cmd_port
                 self.log("Using command port of {}".format(self._cached_cmd_port))
             else:
-                self._cached_cmd_port = determine_command_port()
+                self._cached_cmd_port = Server.determine_command_port()
                 if self._cached_cmd_port is not None:
                     self.log("Found command port in log: {}".format(self._cached_cmd_port))
                 else:
@@ -157,6 +246,19 @@ class Server:
         client.send_message(msg, (self.client_name,) + args)
 
     def send_osc(self, path, args):
+        def parse_val(s):
+            try:
+                return int(s)
+            except ValueError:
+                pass
+            try:
+                return float(s)
+            except ValueError:
+                pass
+            if len(s) > 1 and s[0] == '"' and s[-1] == '"':
+                return s[1:-1]
+            return s
+
         client = self.osc_client()
         parsed = [parse_val(s) for s in args]
         self.log("Sending OSC message to {}:{}: {} {}"
@@ -164,19 +266,11 @@ class Server:
                          ', '.join(repr(v) for v in parsed)))
         client.send_message(path, parsed)
 
-    def port_in_use(self, port):
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            try:
-                sock.bind(('127.0.0.1', port))
-            except OSError:
-                return True
-        return False
-
     def check_if_running(self):
-        cmd_listening = self.port_in_use(self.get_cmd_port())
+        cmd_listening = Server.port_in_use(self.get_cmd_port())
         self.log("The command port ({}) is {}in use".format(self.get_cmd_port(),
                                                             "" if cmd_listening else "not "))
-        osc_listening = self.port_in_use(self.osc_port)
+        osc_listening = Server.port_in_use(self.osc_port)
         self.log("The OSC port ({}) is {}in use".format(self.osc_port,
                                                         "" if osc_listening else "not "))
         if cmd_listening and osc_listening:
@@ -203,6 +297,26 @@ class Server:
     def stop_and_save_recording(self, path):
         self.send_cmd('/stop-recording')
         self.send_cmd('/save-recording', path)
+
+    @staticmethod
+    def port_in_use(port):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            try:
+                sock.bind(('127.0.0.1', port))
+            except OSError:
+                return True
+        return False
+
+    @staticmethod
+    def determine_command_port():
+        try:
+            with open(os.path.expanduser(SERVER_OUTPUT)) as f:
+                for line in f:
+                    m = re.search('^Listen port: *([0-9]+)', line)
+                    if m:
+                        return int(m.groups()[0])
+        except FileNotFoundError:
+            pass
 
     @staticmethod
     def printc(*txt_style):
@@ -322,95 +436,6 @@ class Server:
             self.log("No Sonic Pi processes were found to shut down", True)
 
 
-class Installation:
-    ruby_paths = ['server/native/ruby/bin/ruby',
-                  'server/native/ruby/bin/ruby.exe']
-    server_paths = ['server/ruby/bin/sonic-pi-server.rb',
-                    'server/bin/sonic-pi-server.rb']
-
-    def __init__(self, base, logger):
-        self.log = logger
-        self.base = os.path.expanduser(base)
-        self.ruby = None
-        for i, path in enumerate(Installation.ruby_paths):
-            if os.path.isfile(self.expand_path(path)):
-                self.ruby = i
-                break
-        self.server = None
-        for i, path in enumerate(Installation.server_paths):
-            if os.path.isfile(self.expand_path(path)):
-                self.server = i
-                break
-
-    def exists(self):
-        return self.server is not None
-
-    def expand_path(self, path):
-        return os.path.normpath(os.path.join(self.base, path))
-
-    def ruby_path(self):
-        if self.ruby is None:
-            return 'ruby'
-        else:
-            return self.expand_path(Installation.ruby_paths[self.ruby])
-
-    def server_path(self):
-        return self.expand_path(Installation.server_paths[self.server])
-
-    def run(self, background):
-        args = [self.ruby_path(), '-E', 'utf-8']
-        if platform.system in ['Darwin', 'Windows']:
-            args.append('--enable-frozen-string-literal')
-        args.append(self.server_path())
-        self.log("Running: {}".format(' '.join(args)))
-        out = os.path.expanduser(SERVER_OUTPUT)
-        err = os.path.expanduser(SERVER_ERRORS)
-        q = queue.Queue(1)
-
-        def outfun(line):
-            print(line[:-1])
-            if line.startswith('Sonic Pi Server successfully booted'):
-                q.put(True)
-
-        def errfun(line):
-            print("ERROR: " + line[:-1])
-
-        with open(out, 'w') as outfile:
-            with open(err, 'w') as errfile:
-                process = run_process(args, outfile, errfile)
-                background_tail(out, outfun)
-                background_tail(err, errfun)
-                ok = False
-                for _ in range(30):
-                    try:
-                        process.wait(timeout=1)
-                        break
-                    except subprocess.TimeoutExpired:
-                        pass
-                    try:
-                        ok = q.get_nowait()
-                        break
-                    except queue.Empty:
-                        ok = False
-                if process.poll() is not None:
-                    self.log("Sonic Pi server failed to start", True)
-                    return 1
-                if background:
-                    if ok:
-                        self.log("Sonic Pi started, leaving it in the background now", True)
-                        return 0
-                    else:
-                        self.log("Sonic Pi doesn't seem to have started yet, "
-                                 "but leaving it in the background now", True)
-                        return 1
-                ret = process.wait()
-                if ret:
-                    self.log("Sonic Pi server quit with error code {}".format(ret), True)
-                    return 1
-                self.log("Sonic Pi server has now quit", True)
-                return 0
-
-
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'],
                         token_normalize_func=lambda x:
                         x.lower().replace('-', '_'))
@@ -430,8 +455,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'],
               help="Print more information to help with debugging.")
 @click.pass_context
 def cli(ctx, host, cmd_port, osc_port, preamble, verbose):
-    logger = Logger(verbose)
-    ctx.obj = Server(host, cmd_port, osc_port, preamble, logger)
+    ctx.obj = Server(host, cmd_port, osc_port, preamble, verbose)
 
 
 @cli.command(help="Check if Sonic Pi server is running.")
@@ -485,30 +509,9 @@ def osc(ctx, path, args):
               help="Run server process in the background.")
 @click.pass_context
 def start_server(ctx, path, background):
-    default_paths = ('./Sonic Pi.app/Contents/Resources/app',  # Check current dir first
-                     './Sonic Pi.app',
-                     './Sonic Pi/app',
-                     './app',
-                     '~/Applications/Sonic Pi.app/Contents/Resources/app',  # Then home dir
-                     '~/Applications/Sonic Pi.app',
-                     '~/Sonic Pi/app',
-                     '/Applications/Sonic Pi.app/Contents/Resources/app',  # Finally standard dirs
-                     '/Applications/Sonic Pi.app',
-                     'c:/Program Files/Sonic Pi/app',
-                     '/opt/sonic-pi-*/app',
-                     '/opt/sonic-pi/app',
-                     '/usr/bin/sonic-pi-*',
-                     '/usr/bin/sonic-pi',
-                     '/usr/lib/sonic-pi')
-
-    logger = Logger(ctx.parent.params['verbose'])
-    for pp in path + default_paths:
-        for p in reversed(glob.glob(pp)):
-            inst = Installation(p, logger)
-            if inst.exists():
-                logger("Found installation at: {}".format(inst.base))
-                sys.exit(inst.run(background))
-    print("I couldn't find the Sonic Pi server executable :(")
+    inst = Installation.get_installation(path, ctx.parent.params['verbose'])
+    if inst:
+        sys.exit(inst.run(background))
     sys.exit(1)
 
 
