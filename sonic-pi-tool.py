@@ -270,11 +270,16 @@ class Server:
         except Exception as e:
             return e
 
-    def kill_process(self, name, pred):
+    def kill_process(self, name, exe, arg=None):
+        exe_re = re.compile(exe.replace('/', r'[/\\]') + '$', re.IGNORECASE)
+        if arg:
+            arg_re = re.compile(arg.replace('/', r'[/\\]') + '$', re.IGNORECASE)
         for p in psutil.process_iter():
             try:
                 # Put in a try block because it can throw if the process has stopped
-                v = pred(p)
+                v = re.match(exe_re, p.exe())
+                if arg:
+                    v = v and [re.match(arg_re, c) for c in p.cmdline()]
             except Exception:
                 v = False
             if v:
@@ -302,25 +307,13 @@ class Server:
 
     def shutdown_sonic_pi(self):
         full = False
-        full += self.kill_process('GUI', lambda p: p.name() == 'Sonic Pi')
-        full += self.kill_process('Server',
-                                  lambda p: p.name() == 'ruby'
-                                  and '/app/server/native/' in p.exe()
-                                  and [c for c in p.cmdline()
-                                       if c.endswith('/sonic-pi-server.rb')])
+        full += self.kill_process('GUI', '.*/Sonic[ -]Pi([.]exe)?')
+        full += self.kill_process('Server', '.*/ruby([.]exe)?$', '.*/sonic-pi-server.rb')
         part = False
-        part += self.kill_process('SCSynth',
-                                  lambda p: p.name() == 'scsynth'
-                                  and '/app/server/native/' in p.exe())
-        part += self.kill_process('Erlang',
-                                  lambda p: p.name() == 'beam.smp'
-                                  and '/app/server/native/' in p.exe())
-        part += self.kill_process('o2m',
-                                  lambda p: p.name() == 'o2m'
-                                  and '/app/server/native/' in p.exe())
-        part += self.kill_process('m2o',
-                                  lambda p: p.name() == 'm2o'
-                                  and '/app/server/native/' in p.exe())
+        part += self.kill_process('SCSynth', '.*/app/server/native/scsynth([.]exe)?')
+        part += self.kill_process('Erlang', '.*/app/server/native/.*/(beam[.]smp|erl([.]exe)?)')
+        part += self.kill_process('o2m', '.*/app/server/native/.*/o2m([.]exe)?')
+        part += self.kill_process('m2o', '.*/app/server/native/.*/m2o([.]exe)?')
         if full:
             self.log("Sonic Pi has been shut down", True)
         elif part:
