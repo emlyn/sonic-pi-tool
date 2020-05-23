@@ -330,7 +330,8 @@ class Server:
 
 
 class Installation:
-    ruby_paths = ['server/native/ruby/bin/ruby']
+    ruby_paths = ['server/native/ruby/bin/ruby',
+                  'server/native/ruby/bin/ruby.exe']
     server_paths = ['server/ruby/bin/sonic-pi-server.rb',
                     'server/bin/sonic-pi-server.rb']
 
