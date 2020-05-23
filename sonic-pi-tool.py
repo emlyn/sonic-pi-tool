@@ -277,12 +277,12 @@ class Server:
         for p in psutil.process_iter():
             try:
                 # Put in a try block because it can throw if the process has stopped
-                v = re.match(exe_re, p.exe())
-                if arg:
-                    v = v and [re.match(arg_re, c) for c in p.cmdline()]
+                m = re.match(exe_re, p.exe())
+                if m and arg:
+                    m = [c for c in p.cmdline() if re.match(arg_re, c)]
             except Exception:
-                v = False
-            if v:
+                m = False
+            if m:
                 self.log("Found {} with pid {} at {}"
                          .format(name, p.pid, p.exe()))
                 try:
