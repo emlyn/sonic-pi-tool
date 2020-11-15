@@ -94,7 +94,7 @@ class Installation:
     def server_path(self):
         return self.expand_path(Installation.server_paths[self.server])
 
-    def run(self, background):
+    def run(self, background, callback):
         args = [self.ruby_path(), '-E', 'utf-8']
         if platform.system in ['Darwin', 'Windows']:
             args.append('--enable-frozen-string-literal')
@@ -133,6 +133,8 @@ class Installation:
                 if process.poll() is not None:
                     self.log("Sonic Pi server failed to start", True)
                     return 1
+                if callback is not None:
+                    callback()
                 if background:
                     if ok:
                         self.log("Sonic Pi started, leaving it in the background now", True)
@@ -507,11 +509,24 @@ def osc(ctx, path, args):
               "may be specified multiple times.")
 @click.option('--background/--foreground',
               help="Run server process in the background.")
+@click.option('--cue-server', type=click.Choice(['internal', 'external', 'off']),
+              default='internal',
+              help="Change cue server configuration (default is internal listener).")
 @click.pass_context
-def start_server(ctx, path, background):
+def start_server(ctx, path, background, cue_server):
+    def setup_server():
+        if cue_server == 'off':
+            ctx.obj.send_cmd('/cue-port-stop')
+        else:
+            ctx.obj.send_cmd('/cue-port-start')
+            if cue_server == 'internal':
+                ctx.obj.send_cmd('/cue-port-internal')
+            elif cue_server == 'external':
+                ctx.obj.send_cmd('/cue-port-external')
+
     inst = Installation.get_installation(path, ctx.parent.params['verbose'])
     if inst:
-        sys.exit(inst.run(background))
+        sys.exit(inst.run(background, setup_server))
     sys.exit(1)
 
 
