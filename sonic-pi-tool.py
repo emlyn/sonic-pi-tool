@@ -155,7 +155,7 @@ class Installation:
                 line = ''
                 while True:
                     tmp = f.readline()
-                    if tmp is not None:
+                    if tmp:
                         line += tmp
                         if line.endswith('\n'):
                             func(line)
