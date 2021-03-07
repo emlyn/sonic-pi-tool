@@ -1,3 +1,1 @@
 [bandit]
-# B322 only affects Python 2
-skips: B322
